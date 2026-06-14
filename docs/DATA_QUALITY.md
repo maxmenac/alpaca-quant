@@ -78,3 +78,45 @@ Un check automatique en CI refuse un merge si :
 - une feature lit `data/raw/` au lieu de la couche PIT,
 - un backtest utilise une `as_of` postérieure à une donnée qu'il consomme,
 - le bloc `data_declaration` est absent d'un run.
+
+---
+
+## 5. Provider registry quality fields
+
+When the Provider Registry phase begins (see `ROADMAP.md` → Future Phase: Multi-Source Data
+Layer / Provider Registry), every source entered into the lake must carry the metadata listed
+there (provider name, asset class, source role, API type, rate-limit notes, license/terms,
+delay status, price adjustment, survivorship-bias warning, point-in-time compatibility, source
+manifest path, ingestion timestamp, quality warnings).
+
+Two fields are treated as **gating** for promotion above experimental/bronze:
+
+- **point-in-time compatibility**
+- **survivorship-bias warning**
+
+A source missing a clear answer to either stays **bronze**.
+
+---
+
+## 6. Free / secondary source warning
+
+Free data sources are useful but must be treated with care. Known hazards:
+
+- **Rate limits** — free tiers cap calls/min and calls/day; pipelines fail mid-run when the
+  ceiling is hit. Record limits in the registry before building on a source.
+- **Fragility / unofficial APIs** — wrappers around public sites, such as `yfinance`, can break
+  without notice and have no contract.
+- **Delayed / EOD data** — most free equity feeds are end-of-day or delayed, not realtime.
+- **Survivorship bias** — many free datasets contain only currently-listed symbols, so history
+  looks better than reality. Flag and document this per source.
+
+---
+
+## 7. Indicator methodology design rule
+
+Do not trust provider-computed technical indicators as alpha truth. Indicators returned by
+external providers, such as moving averages, RSI, or MACD, can use undocumented or unversioned
+methodology and can silently introduce leakage or reproducibility issues. All indicators must
+be computed internally through our own feature factory so we control methodology, versioning,
+leakage handling, and reproducibility. External indicator endpoints may be used only for
+cross-checking, never as inputs to research datasets.

@@ -10,6 +10,23 @@
 
 ---
 
+## Canonical data source (current)
+
+Alpaca remains the current canonical source for controlled US equities historical bars. All
+point-in-time guarantees, ingestion manifests, and downstream research datasets are presently
+anchored to Alpaca. Any future provider is additive and does not displace Alpaca as canonical
+without an explicit roadmap decision.
+
+**Recommended official order (do not reorder without sign-off):**
+
+1. Sprint 5A — Experiment Registry
+2. PIT read layer
+3. Multi-Source Data Layer / Provider Registry
+4. Provider connectors, one by one
+5. Honest backtester / null tests — only once traceability and PIT safeguards are in place
+
+---
+
 ## Phase 0 — Repo + configs + data lake local
 - [ ] Repo propre, `Makefile`, `pyproject.toml`, configs YAML.
 - [ ] Data lake **local** : Parquet + DuckDB (zéro infra serveur).
@@ -67,6 +84,34 @@
 ## Phase 10 — Live, capital minuscule
 - [ ] Tier 2 (delisted + PIT) requis. Capital minimal, limites serrées, kill switch testé.
 - [ ] Réconciliation + TCA quotidiens. Montée en capital seulement si live = paper = backtest sur durée.
+
+---
+
+## Future Phase: Multi-Source Data Layer / Provider Registry
+
+Sequenced after the Experiment Registry and the PIT read layer (see "Recommended official
+order" above).
+
+Introduce a provider registry so the data lake can be enriched with free/secondary sources
+while keeping Alpaca canonical. The registry is metadata-first: it describes and governs
+sources before any connector is implemented. **No fetchers ship in this phase.**
+
+Scope of the registry, tracked per provider:
+
+- **provider name** — e.g. `alpaca`, `fred`, `yfinance`, `alpha_vantage`, `twelve_data`,
+  `finnhub`, `ccxt`
+- **asset class** — equities, ETF, macro, crypto
+- **source role** — canonical, secondary, experimental/bronze
+- **API type** — official API vs unofficial wrapper
+- **rate-limit notes**
+- **license / terms note**
+- **delay status** — delayed / EOD / realtime
+- **price adjustment** — adjusted vs unadjusted
+- **survivorship-bias warning**
+- **point-in-time compatibility**
+- **source manifest path**
+- **ingestion timestamp**
+- **quality warnings**
 
 ---
 

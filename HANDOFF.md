@@ -2,8 +2,8 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: 0d5f939 feat: polish research dataset workflow
-- Repo clean and synced with origin/main (before Sprint 5A work)
+- Latest commit: 8a3c075 feat: add experiment registry
+- Repo clean and synced with origin/main
 
 Current pipeline:
 config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> feature factory -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI
@@ -59,6 +59,17 @@ Safety:
 - no order submission
 - no model training
 - feature layer has zero Alpaca API calls
+
+Data sources — current & future direction:
+- Canonical now: Alpaca is the canonical source for controlled US equities historical bars.
+- Future direction: a metadata-first Multi-Source Data Layer / Provider Registry will let us
+  enrich the lake with free/secondary sources: FRED -> yfinance bronze -> Alpha Vantage /
+  Twelve Data / Finnhub secondary -> CCXT crypto branch, without displacing Alpaca.
+- Sequencing: Experiment Registry -> PIT read layer -> Provider Registry -> connectors one by
+  one -> honest backtester/null tests last, only after PIT and traceability are in place.
+- Hard rules: indicators are computed internally via the feature factory, not provider-supplied;
+  free sources are treated cautiously because of rate limits, unofficial APIs, delayed/EOD data,
+  and survivorship bias.
 
 Next recommended sprint:
 PIT read layer (python/alpaca_quant/data/pit/ is still a stub) to enforce

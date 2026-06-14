@@ -119,3 +119,26 @@ Le portefeuille agrégé est accepté si **tous** :
 - La performance **n'est pas concentrée dans un seul régime** (vérifier le PnL par régime).
 - **Aucun alpha unique** n'explique la majorité du PnL (sinon ce n'est pas un portefeuille,
   c'est un pari déguisé).
+
+---
+
+## 6. Recommended future source order
+
+When the registry opens to new providers (see `ROADMAP.md` → Future Phase: Multi-Source Data
+Layer / Provider Registry), onboard in this order:
+
+1. **FRED first** — macro / economic data; official API, stable, clean point-in-time semantics.
+2. **`yfinance` later** — experimental/bronze research data only. Never canonical.
+3. **Alpha Vantage / Twelve Data / Finnhub** — possible secondary comparison providers for
+   validation and coverage cross-checks, not canonical.
+4. **CCXT / exchange APIs** — only later, on a separate crypto branch, isolated from the
+   US-equities canonical path.
+
+---
+
+## 7. Internal features only (cross-reference DATA_QUALITY.md)
+
+Research datasets derive features exclusively from the internal feature factory.
+Provider-side indicators are out of scope for the research protocol to preserve leakage control
+and reproducibility across experiment runs. See `DATA_QUALITY.md` → Indicator methodology
+design rule.
