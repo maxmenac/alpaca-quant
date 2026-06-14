@@ -1,6 +1,7 @@
 """Controlled real fetch for a small historical daily bars dataset."""
 
 import json
+import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -52,12 +53,21 @@ class ControlledFetchResult:
 
 
 class _UrllibResponse:
-    def __init__(self, status_code: int, body: bytes) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        body: bytes,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         self.status_code = status_code
         self._body = body
+        self.headers = dict(headers or {})
 
     def json(self) -> Any:
         return json.loads(self._body)
+
+    def text(self) -> str:
+        return self._body.decode("utf-8", errors="replace")
 
 
 class UrllibHTTPTransport:
@@ -80,12 +90,15 @@ class UrllibHTTPTransport:
         )
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:
-                return _UrllibResponse(response.status, response.read())
+                return _UrllibResponse(response.status, response.read(), response.headers)
         except HTTPError as exc:
-            return _UrllibResponse(exc.code, exc.read())
-        except URLError as exc:
+            return _UrllibResponse(exc.code, exc.read(), exc.headers)
+        except (URLError, TimeoutError, OSError) as exc:
+            cause_type, hint = _transport_diagnostics(exc)
             raise HistoricalBarsClientError(
-                "historical bars request failed before receiving a response"
+                "historical bars transport failed before receiving a response",
+                cause_type=cause_type,
+                hint=hint,
             ) from exc
 
 
@@ -247,3 +260,26 @@ def _build_manifest(
         date_range=(start, end),
         known_gaps=known_gaps,
     )
+
+
+def _transport_diagnostics(exc: BaseException) -> tuple[str, str | None]:
+    causes: list[BaseException] = [exc]
+    reason = getattr(exc, "reason", None)
+    if isinstance(reason, BaseException):
+        causes.append(reason)
+
+    current = exc.__cause__ or exc.__context__
+    while current is not None and current not in causes:
+        causes.append(current)
+        current = current.__cause__ or current.__context__
+
+    for cause in causes:
+        if isinstance(cause, ssl.SSLCertVerificationError):
+            return (
+                "SSLCertVerificationError",
+                "On macOS python.org installs, run Install Certificates.command",
+            )
+    for cause in causes:
+        if isinstance(cause, TimeoutError):
+            return "TimeoutError", None
+    return type(exc).__name__, None

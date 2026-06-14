@@ -40,6 +40,9 @@ python scripts/run_controlled_historical_fetch.py --output data/runs/alpaca_cont
 The command requires `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`, defaults to a tiny AAPL/MSFT
 daily range, and includes no trading, backtesting, or live execution.
 
+Failed API calls include safe HTTP status and `X-Request-ID` diagnostics with secrets redacted.
+SSL certificate failures also include a macOS `Install Certificates.command` hint.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as

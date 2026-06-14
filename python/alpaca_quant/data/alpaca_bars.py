@@ -1,5 +1,6 @@
 """Mockable client models for Alpaca historical daily stock bars."""
 
+import json
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import date, datetime
 from typing import Any, Literal, Protocol
@@ -8,9 +9,43 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from alpaca_quant.config import AlpacaConfig
 
+MAX_SAFE_BODY_LENGTH = 500
+
 
 class HistoricalBarsClientError(RuntimeError):
     """Raised when an Alpaca bars request or response cannot be handled safely."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        request_id: str | None = None,
+        safe_body: str | None = None,
+        cause_type: str | None = None,
+        hint: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.request_id = request_id
+        self.safe_body = safe_body
+        self.cause_type = cause_type
+        self.hint = hint
+
+    def __str__(self) -> str:
+        details = [self.message]
+        if self.status_code is not None:
+            details.append(f"status_code={self.status_code}")
+        if self.request_id:
+            details.append(f"request_id={self.request_id}")
+        if self.safe_body:
+            details.append(f"safe_body={self.safe_body}")
+        if self.cause_type:
+            details.append(f"cause_type={self.cause_type}")
+        if self.hint:
+            details.append(f"hint={self.hint}")
+        return "; ".join(details)
 
 
 class HistoricalBarsRequest(BaseModel):
@@ -72,8 +107,11 @@ class HTTPResponse(Protocol):
     """Minimal response surface required from an injected HTTP transport."""
 
     status_code: int
+    headers: Mapping[str, str]
 
     def json(self) -> Any: ...
+
+    def text(self) -> str: ...
 
 
 class HTTPTransport(Protocol):
@@ -107,13 +145,20 @@ class HistoricalBarsClient:
         )
         if response.status_code != 200:
             raise HistoricalBarsClientError(
-                f"historical bars request failed with status {response.status_code}"
+                "historical bars request failed",
+                status_code=response.status_code,
+                request_id=self._request_id(response),
+                safe_body=self._safe_body(response),
             )
 
         try:
             payload = response.json()
         except Exception as exc:
-            raise HistoricalBarsClientError("historical bars response is not valid JSON") from exc
+            raise HistoricalBarsClientError(
+                "historical bars response is not valid JSON",
+                request_id=self._request_id(response),
+                cause_type=type(exc).__name__,
+            ) from exc
 
         return self._parse_page(payload)
 
@@ -141,6 +186,34 @@ class HistoricalBarsClient:
             "APCA-API-KEY-ID": self._config.api_key_id.get_secret_value(),
             "APCA-API-SECRET-KEY": self._config.api_secret_key.get_secret_value(),
         }
+
+    @staticmethod
+    def _request_id(response: HTTPResponse) -> str | None:
+        for name, value in response.headers.items():
+            if name.lower() == "x-request-id":
+                return value
+        return None
+
+    def _safe_body(self, response: HTTPResponse) -> str | None:
+        try:
+            body = response.text()
+        except Exception:
+            try:
+                body = json.dumps(response.json(), ensure_ascii=True)
+            except Exception:
+                return None
+
+        body = " ".join(body.split())
+        for secret in (
+            self._config.api_key_id.get_secret_value(),
+            self._config.api_secret_key.get_secret_value(),
+        ):
+            if secret:
+                body = body.replace(secret, "[REDACTED]")
+
+        if len(body) > MAX_SAFE_BODY_LENGTH:
+            body = body[:MAX_SAFE_BODY_LENGTH] + "..."
+        return body or None
 
     def _params(
         self,

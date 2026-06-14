@@ -1,14 +1,18 @@
 """Tests for the tightly controlled real historical fetch pipeline."""
 
+import ssl
 from typing import Any
+from urllib.error import URLError
 
 import polars as pl
 import pytest
 import yaml
 
 from alpaca_quant.config import ConfigError
+from alpaca_quant.data.alpaca_bars import HistoricalBarsClientError
 from alpaca_quant.data.real_fetch import (
     ControlledFetchError,
+    UrllibHTTPTransport,
     run_controlled_historical_fetch,
 )
 
@@ -199,3 +203,32 @@ def test_missing_credentials_rejected_without_secret_leak(tmp_path, capsys):
     captured = capsys.readouterr()
     rendered = f"{exc_info.value} {captured.out} {captured.err}"
     assert secret_value not in rendered
+
+
+def test_ssl_certificate_failure_has_safe_helpful_diagnostics(monkeypatch):
+    certificate_error = ssl.SSLCertVerificationError(
+        1,
+        "certificate verify failed: unable to get local issuer certificate",
+    )
+
+    def fail_urlopen(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise URLError(certificate_error)
+
+    monkeypatch.setattr("alpaca_quant.data.real_fetch.urlopen", fail_urlopen)
+
+    with pytest.raises(HistoricalBarsClientError) as exc_info:
+        UrllibHTTPTransport().get(
+            "https://data.example.test/v2/stocks/bars",
+            headers={
+                "APCA-API-KEY-ID": "key-must-not-leak",
+                "APCA-API-SECRET-KEY": "secret-must-not-leak",
+            },
+            params={"symbols": "AAPL", "timeframe": "1Day"},
+        )
+
+    error = exc_info.value
+    rendered = str(error)
+    assert error.cause_type == "SSLCertVerificationError"
+    assert "Install Certificates.command" in rendered
+    assert "key-must-not-leak" not in rendered
+    assert "secret-must-not-leak" not in rendered

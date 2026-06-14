@@ -1,5 +1,6 @@
 """Tests for the mockable Alpaca historical bars client."""
 
+import json
 from datetime import date
 from typing import Any
 
@@ -15,12 +16,26 @@ from alpaca_quant.data.alpaca_bars import (
 
 
 class FakeResponse:
-    def __init__(self, payload: Any, status_code: int = 200) -> None:
+    def __init__(
+        self,
+        payload: Any,
+        status_code: int = 200,
+        *,
+        headers: dict[str, str] | None = None,
+        body: str | None = None,
+    ) -> None:
         self.status_code = status_code
         self._payload = payload
+        self.headers = headers or {}
+        self._body = body
 
     def json(self) -> Any:
         return self._payload
+
+    def text(self) -> str:
+        if self._body is not None:
+            return self._body
+        return json.dumps(self._payload)
 
 
 class FakeTransport:
@@ -183,11 +198,39 @@ def test_max_pages_protects_against_endless_pagination(config):
     assert len(transport.calls) == 2
 
 
-def test_non_200_response_raises_clear_error(config):
-    transport = FakeTransport([FakeResponse({"message": "unauthorized"}, status_code=401)])
+def test_non_200_response_includes_safe_diagnostics(config):
+    long_body = (
+        '{"message":"unauthorized","key":"test-key","secret":"test-secret","detail":"'
+        + "x" * 600
+        + '"}'
+    )
+    transport = FakeTransport(
+        [
+            FakeResponse(
+                {"message": "unauthorized"},
+                status_code=401,
+                headers={"X-Request-ID": "request-123"},
+                body=long_body,
+            )
+        ]
+    )
 
-    with pytest.raises(HistoricalBarsClientError, match="status 401"):
+    with pytest.raises(HistoricalBarsClientError) as exc_info:
         HistoricalBarsClient(config, transport).fetch_page(request())
+
+    error = exc_info.value
+    rendered = str(error)
+    assert error.status_code == 401
+    assert error.request_id == "request-123"
+    assert error.safe_body is not None
+    assert error.safe_body.endswith("...")
+    assert len(error.safe_body) == 503
+    assert "status_code=401" in rendered
+    assert "request_id=request-123" in rendered
+    assert "safe_body=" in rendered
+    assert "test-key" not in rendered
+    assert "test-secret" not in rendered
+    assert "[REDACTED]" in rendered
 
 
 def test_malformed_response_raises_clear_error(config):
