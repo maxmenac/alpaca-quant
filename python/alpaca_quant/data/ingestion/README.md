@@ -13,6 +13,11 @@ gaps. These declarations make data limitations explicit and gate how far researc
 Sprint 1D writes already-parsed `Bar` objects to local Parquet files only. It performs no real
 Alpaca API calls, and DuckDB indexing remains outside this sprint.
 
+## DuckDB query layer
+
+Sprint 1E uses an in-memory DuckDB connection to query existing local Parquet files. It performs
+no real API calls, creates no persistent database, and contains no trading logic.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as
