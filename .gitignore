@@ -1,0 +1,23 @@
+# Secrets — never commit real keys
+.env
+
+# Python
+__pycache__/
+.venv/
+.ruff_cache/
+
+# macOS
+.DS_Store
+
+# Data lake contents — keep the directory structure, ignore the data
+data/*/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/features/.gitkeep
+!data/universe/.gitkeep
+!data/backtests/.gitkeep
+!data/signals/.gitkeep
+
+# Python build/test artifacts
+*.egg-info/
+.pytest_cache/

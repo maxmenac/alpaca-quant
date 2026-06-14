@@ -1,0 +1,7 @@
+# Limites de risque — voir docs/SAFETY_POLICY.md (SAFETY ≠ RISK) et SIGNAL_CONTRACT.md §2
+max_position_pct: 5
+max_daily_loss_pct: 1
+max_open_positions: 3
+max_gross_exposure: 1.0
+max_net_exposure: 0.5
+require_human_approval: true

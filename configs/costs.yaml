@@ -1,0 +1,5 @@
+# Hypothèses de coûts — voir docs/RESEARCH_PROTOCOL.md §2 (cost stress) et ARCHITECTURE.md P3
+commission_bps: 0
+slippage_bps_daily: 5
+slippage_bps_stress_2x: 10
+slippage_bps_stress_5x: 25

@@ -1,0 +1,6 @@
+# Composition des sleeves / familles de stratégies — voir docs/ARCHITECTURE.md §3.5
+strategies:
+  - trend_following
+  - mean_reversion
+  - factor_sleeve
+  - volatility_expansion

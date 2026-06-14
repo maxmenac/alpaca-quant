@@ -1,0 +1,5 @@
+mode: paper
+allow_live_trading: false
+require_human_approval: true
+max_notional_order_usd: 1000
+kill_switch_armed: true
