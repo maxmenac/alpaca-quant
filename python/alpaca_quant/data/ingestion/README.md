@@ -23,6 +23,12 @@ no real API calls, creates no persistent database, and contains no trading logic
 Sprint 1F connects the Tier 0 manifest, Parquet writer, and DuckDB query layer using mocked bars
 only. It performs no real Alpaca API calls and contains no trading logic.
 
+## Running the mock ingestion dry run
+
+Run `python scripts/run_mock_ingestion_dry_run.py --output data/runs/mock_001` from the repository
+root. The command uses mocked bars only, makes no real Alpaca API call, and contains no trading
+logic.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as
