@@ -4,6 +4,10 @@ Vendor connectors that pull raw market data into the local data lake.
 
 **Status: not implemented yet (Sprint 0).** No real downloader exists.
 
+Every produced dataset must carry a validated `data_declaration` manifest recording its quality
+tier, universe provenance, survivorship and point-in-time guarantees, feed, date range, and known
+gaps. These declarations make data limitations explicit and gate how far research may be promoted.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as
