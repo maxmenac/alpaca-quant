@@ -25,19 +25,31 @@ from alpaca_quant.research.experiment_registry import (
     new_experiment_record,
     read_experiment_records,
 )
+from alpaca_quant.research.experiment_runner import (
+    ExperimentRunError,
+    ExperimentRunResult,
+    compute_config_hash,
+    flatten_experiment_metrics,
+    run_backtest_experiment,
+)
 
 __all__ = [
     "ExperimentRecord",
     "ExperimentRegistryError",
+    "ExperimentRunError",
+    "ExperimentRunResult",
     "ResearchDatasetError",
     "ResearchDatasetManifest",
     "ResearchDatasetSummary",
     "append_experiment_record",
     "build_research_dataset_manifest",
     "capture_git_sha",
+    "compute_config_hash",
     "create_experiment_run_id",
+    "flatten_experiment_metrics",
     "load_research_dataset",
     "new_experiment_record",
     "read_experiment_records",
+    "run_backtest_experiment",
     "summarize_research_dataset",
 ]

@@ -1,11 +1,12 @@
 """Append-only JSONL registry for research experiments.
 
-This is discipline scaffolding (RESEARCH_PROTOCOL.md §1): future backtests will write
-immutable run entries here. This sprint records metadata only — no backtest runs yet.
+Discipline scaffolding (RESEARCH_PROTOCOL.md §1): every research run produces one immutable
+entry — no entry means the run never happened. From Phase 3C, backtest experiments write here
+with filled numeric metrics (`no_backtesting=False`); capital-safety flags (`no_trading`,
+`no_model_training`, `no_live_execution`, `no_order_submission`) stay enforced True.
 
 Local only. No network. No Alpaca API calls. No .env file reads. Environment variables are
-read solely to redact secrets, never to consume credentials. No labels, targets, signals,
-alpha, model training, backtesting, or trading.
+read solely to redact secrets, never to consume credentials.
 """
 
 import json
@@ -47,14 +48,21 @@ class ExperimentRecord(BaseModel):
     feature_version: str | None = None
     config_hash: str | None = None
     seed: int | None = None
+    as_of: str | None = None
+    report_path: str | None = None
+    weight_source: str | None = None
     metrics: dict[str, float] = Field(default_factory=dict)
     decision: DecisionType = "keep_researching"
     decided_by: str | None = None
     notes: str | None = None
     kind: Literal["experiment"] = "experiment"
     no_trading: StrictBool = True
-    no_backtesting: StrictBool = True
     no_model_training: StrictBool = True
+    no_live_execution: StrictBool = True
+    no_order_submission: StrictBool = True
+    # Informational (NOT a capital-safety invariant): backtesting is a legitimate research
+    # activity from Phase 3 on. Real backtest experiment records set this False.
+    no_backtesting: bool = True
 
     @field_validator("run_id")
     @classmethod
@@ -70,11 +78,13 @@ class ExperimentRecord(BaseModel):
             raise ValueError("created_at must include a timezone")
         return value.astimezone(UTC)
 
-    @field_validator("no_trading", "no_backtesting", "no_model_training")
+    @field_validator(
+        "no_trading", "no_model_training", "no_live_execution", "no_order_submission"
+    )
     @classmethod
     def require_safety_flag_true(cls, value: bool) -> bool:  # noqa: FBT001
         if value is not True:
-            raise ValueError("safety flags must be True (fail-closed)")
+            raise ValueError("capital-safety flags must be True (fail-closed)")
         return value
 
 

@@ -60,11 +60,23 @@ class TestRecordModel:
             record(run_id="   ")
 
     @pytest.mark.parametrize(
-        "flag", ["no_trading", "no_backtesting", "no_model_training"]
+        "flag",
+        ["no_trading", "no_model_training", "no_live_execution", "no_order_submission"],
     )
-    def test_safety_flag_false_rejected(self, flag: str) -> None:
+    def test_capital_safety_flag_false_rejected(self, flag: str) -> None:
         with pytest.raises(ValidationError, match="fail-closed"):
             record(**{flag: False})
+
+    def test_no_backtesting_false_is_allowed(self) -> None:
+        # backtesting is a legitimate research activity; the flag is informational, not enforced
+        rec = record(no_backtesting=False)
+        assert rec.no_backtesting is False
+
+    def test_new_provenance_fields(self) -> None:
+        rec = record(as_of="2024-01-31", report_path="data/runs/x.json", weight_source="caller")
+        assert rec.as_of == "2024-01-31"
+        assert rec.report_path == "data/runs/x.json"
+        assert rec.weight_source == "caller"
 
     def test_invalid_decision_rejected(self) -> None:
         with pytest.raises(ValidationError):

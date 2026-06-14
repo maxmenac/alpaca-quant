@@ -2,11 +2,11 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: 442f127 feat: add honest backtest engine core (PIT, costs, metrics)
-- Repo clean and synced with origin/main (before Phase 3B work)
+- Latest commit: f6755bb feat: add null-model battery for backtest sanity
+- Repo clean and synced with origin/main (before Phase 3C work)
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI)
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -90,7 +90,25 @@ Experiment registry (Sprint 5A):
 - git_sha captured via subprocess `git rev-parse HEAD` only (local, never networks)
 - new_experiment_record(...) auto-fills run_id/created_at/git_sha
 - list_experiments CLI: --registry <path>
-- discipline scaffolding only — NO backtest runs executed yet (RESEARCH_PROTOCOL.md §1)
+- Phase 3C extended the record: added as_of, report_path, weight_source fields
+- capital-safety flags ENFORCED True: no_trading, no_model_training, no_live_execution,
+  no_order_submission. no_backtesting is now informational (default True; backtest runs set
+  it False) — backtesting is legitimate from Phase 3 on
+
+Backtest experiment runner (Phase 3C):
+- research.experiment_runner.run_backtest_experiment(*, bars_path, weights_path, as_of,
+  weight_source, seed, horizon, symbols, costs_path, registry_path, report_dir, ...)
+- wires PIT read -> run_backtest -> run_null_battery -> JSON+MD report -> registry append
+- weights are CALLER-PROVIDED local Parquet (symbol,timestamp,weight); runner generates NO
+  strategy/signal/alpha/optimizer/model
+- as_of REQUIRED; PIT enforced (load_pit_bars + run_backtest as_of); fail-closed on lookahead
+- timestamps normalized to UTC before the bars/weights join (DuckDB can return local tz)
+- metrics dict[str,float] strictly numeric; bool diagnostics encoded 1.0/0.0 (e.g.
+  nb.future_leak_detected); full structured diagnostics go to the JSON report
+- compute_config_hash = sha256 over canonical result-determining config (deterministic)
+- experiment_report.py: build_report_payload / render_markdown / write_report (JSON + MD)
+- CLI: scripts/run_experiment.py (--bars --weights --as-of --weight-source required)
+- reports + registry land in git-ignored data/runs/, never committed
 
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
@@ -114,7 +132,8 @@ Data sources — current & future direction:
   and survivorship bias.
 
 Next recommended sprint:
-Phase 3C — wire backtest runs + null-battery reports into the experiment registry (fill the
-metrics placeholder), add a report/summary surface, and a local CLI. Reads bars via PIT,
-features via build_pit_feature_set, scores via run_backtest, sanity via run_null_battery.
-Still no real alpha generation or model training until Phase 4.
+Phase 3D (optional) — walk-forward / purged validation split (RESEARCH_PROTOCOL.md §3,
+VALIDATED_OOS), still on caller-provided weights, recorded in the registry.
+Then Phase 4 — first real alphas (this is where weight/signal generation finally begins,
+each alpha going through the null battery + promotion gate). No model training or real alpha
+generation until Phase 4 is explicitly scoped.

@@ -130,9 +130,12 @@ append_experiment_record("data/runs/experiment_registry.jsonl", record)
 ```
 
 Record fields: `run_id`, `created_at`, `git_sha`, `dataset_id`, `dataset_manifest_path`,
-`feature_set_id`, `feature_version`, `config_hash`, `seed`, `metrics` (empty placeholder),
-`decision` (default `keep_researching`), `decided_by`, `notes`, `kind="experiment"`, and the
-safety flags `no_trading` / `no_backtesting` / `no_model_training` (all `True`).
+`feature_set_id`, `feature_version`, `config_hash`, `seed`, `as_of`, `report_path`,
+`weight_source`, `metrics` (numeric only), `decision` (default `keep_researching`),
+`decided_by`, `notes`, `kind="experiment"`. Capital-safety flags `no_trading`,
+`no_model_training`, `no_live_execution`, `no_order_submission` are **enforced `True`**
+(fail-closed). `no_backtesting` is informational (default `True`; real backtest runs set it
+`False`) — backtesting is a legitimate research activity from Phase 3 on.
 
 Guarantees:
 - `run_id` is **unique and immutable** — re-appending an existing `run_id` is rejected and
@@ -153,12 +156,41 @@ python scripts/list_experiments.py --registry data/runs/experiment_registry.json
 Prints `run_id`, `created_at`, `git_sha`, `dataset_id`, `feature_set_id`, `seed`, `decision`,
 `decided_by`. Fails clearly on a missing/malformed registry. No secrets are printed.
 
+## Backtest experiments (Phase 3C)
+
+`run_backtest_experiment(...)` wires the existing blocks into one immutable, traceable run:
+PIT read (`load_pit_bars`) → backtest engine (`run_backtest`) → null-model battery
+(`run_null_battery`) → JSON + Markdown report → experiment registry entry.
+
+```python
+from alpaca_quant.research import run_backtest_experiment
+
+result = run_backtest_experiment(
+    bars_path="data/runs/run/historical_bars.parquet",
+    weights_path="data/runs/run/weights_AAPL.parquet",  # caller-provided; NOT generated here
+    as_of="2024-01-31",                                  # required, PIT cutoff (no lookahead)
+    weight_source="caller: my_weights_v1",
+    seed=12345,
+)
+result.record        # ExperimentRecord with numeric metrics, config_hash, report_path
+result.report_paths  # JSON (canonical) + Markdown (human)
+```
+
+- **It creates no strategy.** Weights come only from a local Parquet (`symbol, timestamp,
+  weight`); the runner never computes a signal/alpha/optimizer/model.
+- **PIT enforced**: bars are read via `load_pit_bars(as_of=...)` and `run_backtest(as_of=...)`
+  re-asserts no-lookahead.
+- **`metrics` stays strictly numeric**: backtest + null-battery numbers; boolean diagnostics
+  (e.g. `nb.future_leak_detected`) are encoded `1.0`/`0.0`. Full structured diagnostics live in
+  the JSON report.
+- **`config_hash`** is a deterministic `sha256:` over the result-determining config.
+- CLI: `python scripts/run_experiment.py --bars ... --weights ... --as-of ... --weight-source ...`
+
 ## What this layer does NOT do
 
-- No prediction, signal, alpha, label, or target columns
-- No model training
-- No backtesting (the experiment registry records metadata only; no run is executed)
-- No order / trade / position concepts
+- No prediction, signal, alpha, label, or target generation (weights are caller-provided)
+- No optimizer, no strategy discovery, no model training
+- No order / trade / position / live-execution concepts
 - No Alpaca API calls, no `.env` file reads, no network
 
 ## data/runs/ is local only
