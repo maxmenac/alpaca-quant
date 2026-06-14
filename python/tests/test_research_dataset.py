@@ -180,7 +180,7 @@ class TestValidation:
     def test_symbol_filter_absent_in_bars_rejected(self, tmp_path: Path) -> None:
         bars = _write(_bars_df("AAPL"), tmp_path / "bars.parquet")
         feats = _write(_features_df("AAPL"), tmp_path / "features.parquet")
-        with pytest.raises(ResearchDatasetError, match="no rows for symbol 'TSLA'"):
+        with pytest.raises(ResearchDatasetError, match=r"bars dataset has no rows for symbol"):
             load_research_dataset(bars, feats, symbol="TSLA")
 
 

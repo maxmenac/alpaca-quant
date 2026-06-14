@@ -2,11 +2,11 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: 8dc8284 feat: add feature factory foundation
-- Repo clean and synced with origin/main
+- Latest commit: 4c5cef0 feat: add research dataset skeleton
+- Repo clean and synced with origin/main (before Sprint 4B work)
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> feature factory -> list-feature-sets CLI
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> feature factory -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -24,6 +24,20 @@ Feature factory (Sprint 3A + 3B):
 - feature_set_id is deterministic: sha256(resolved_path:SYMBOL)[:8]
 - no-lookahead validated by test suite
 
+Research dataset layer (Sprint 4A + 4B):
+- load_research_dataset(bars_path, features_path, symbol, start, end, as_of)
+  - aligns local bars + features on (symbol, timestamp), inner join, Polars only
+  - multi-symbol: symbol accepts list, features_path accepts list of per-symbol files
+  - as_of is an inclusive upper-bound lookahead guard, composes with end
+  - deterministic sort by (symbol, timestamp); forbidden trading/label columns rejected
+- build_research_dataset_manifest(...) -> ResearchDatasetManifest
+  - dataset_id deterministic (rds-<sha256[:8]>), created_at UTC, symbols, start/end/as_of,
+    bars_path, features_paths, row_count, feature_count, known_gaps,
+    no_trading/no_backtesting/no_model_training = true
+- inspect_research_dataset CLI: --bars --features... --symbol... --start --end --as-of
+  --write-manifest (writes research_dataset_<id>_manifest.yaml, local/ignored)
+- list_research_datasets CLI: --run <run> | --dir <path>
+
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
 - data/runs/ ignored, do not commit data artifacts
@@ -35,6 +49,6 @@ Safety:
 - feature layer has zero Alpaca API calls
 
 Next recommended sprint:
-Sprint 4A — research skeleton: notebook-friendly entry point that loads bars + features
-for a symbol/date-range, foundation for first signal or alpha exploration.
-No trading, no backtesting, no model training yet.
+Sprint 4C / 5A — research protocol scaffolding (experiment registry entries per
+RESEARCH_PROTOCOL.md §1) on top of the research dataset layer. Still no labels,
+no signals, no backtesting, no model training, no trading.
