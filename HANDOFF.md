@@ -2,11 +2,11 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: 4c5cef0 feat: add research dataset skeleton
-- Repo clean and synced with origin/main (before Sprint 4B work)
+- Latest commit: 0d5f939 feat: polish research dataset workflow
+- Repo clean and synced with origin/main (before Sprint 5A work)
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> feature factory -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> feature factory -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -38,6 +38,18 @@ Research dataset layer (Sprint 4A + 4B):
   --write-manifest (writes research_dataset_<id>_manifest.yaml, local/ignored)
 - list_research_datasets CLI: --run <run> | --dir <path>
 
+Experiment registry (Sprint 5A):
+- append-only JSONL at data/runs/experiment_registry.jsonl (local, git-ignored)
+- ExperimentRecord (pydantic, extra=forbid): run_id, created_at (UTC), git_sha,
+  dataset_id, dataset_manifest_path, feature_set_id, feature_version, config_hash, seed,
+  metrics (empty placeholder), decision (default keep_researching), decided_by, notes,
+  kind="experiment", no_trading/no_backtesting/no_model_training=true (enforced True)
+- run_id unique & immutable: re-appending an existing run_id is rejected, nothing written
+- git_sha captured via subprocess `git rev-parse HEAD` only (local, never networks)
+- new_experiment_record(...) auto-fills run_id/created_at/git_sha
+- list_experiments CLI: --registry <path>
+- discipline scaffolding only — NO backtest runs executed yet (RESEARCH_PROTOCOL.md §1)
+
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
 - data/runs/ ignored, do not commit data artifacts
@@ -49,6 +61,7 @@ Safety:
 - feature layer has zero Alpaca API calls
 
 Next recommended sprint:
-Sprint 4C / 5A — research protocol scaffolding (experiment registry entries per
-RESEARCH_PROTOCOL.md §1) on top of the research dataset layer. Still no labels,
-no signals, no backtesting, no model training, no trading.
+PIT read layer (python/alpaca_quant/data/pit/ is still a stub) to enforce
+"features read only via the PIT layer, never raw" (ROADMAP Phase 2 output, DATA_QUALITY §4),
+then Phase 3 — honest backtester + null-model battery (writes experiment registry entries).
+Still no labels, no signals, no model training, no trading until the backtester sprint.

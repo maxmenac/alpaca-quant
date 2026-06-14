@@ -105,14 +105,63 @@ directory, no manifests, or a malformed/incomplete manifest. No secrets are prin
 - an empty result after the join
 - any trading/label concept column (`target`, `label`, `signal`, `order`, `weight`, …)
 
+## Experiment registry (Sprint 5A)
+
+An append-only JSONL registry records research experiment runs — discipline scaffolding
+(RESEARCH_PROTOCOL.md §1) that future backtests will write to. **This sprint records metadata
+only: no backtest runs, `metrics` ships empty, and the safety flags are enforced `True`.**
+
+```python
+from alpaca_quant.research import (
+    new_experiment_record,
+    append_experiment_record,
+    read_experiment_records,
+)
+
+record = new_experiment_record(            # auto-fills run_id, created_at (UTC), git_sha
+    dataset_id="rds-85eb9a7b",
+    dataset_manifest_path="data/runs/run/research_dataset_rds-85eb9a7b_manifest.yaml",
+    feature_set_id="feat-AAPL-27d52941",
+    config_hash="sha256:...",
+    seed=42,
+    decided_by="max",
+)
+append_experiment_record("data/runs/experiment_registry.jsonl", record)
+```
+
+Record fields: `run_id`, `created_at`, `git_sha`, `dataset_id`, `dataset_manifest_path`,
+`feature_set_id`, `feature_version`, `config_hash`, `seed`, `metrics` (empty placeholder),
+`decision` (default `keep_researching`), `decided_by`, `notes`, `kind="experiment"`, and the
+safety flags `no_trading` / `no_backtesting` / `no_model_training` (all `True`).
+
+Guarantees:
+- `run_id` is **unique and immutable** — re-appending an existing `run_id` is rejected and
+  nothing is written.
+- `created_at` must be timezone-aware (coerced to UTC).
+- `git_sha` is captured via `subprocess` (`git rev-parse HEAD`) only — local, read-only, never
+  networks, returns `None` if unavailable.
+- secrets are rejected before writing; malformed/duplicate JSONL lines are rejected on read.
+
+### List experiments from the CLI
+
+```bash
+python scripts/list_experiments.py
+# or a custom path:
+python scripts/list_experiments.py --registry data/runs/experiment_registry.jsonl
+```
+
+Prints `run_id`, `created_at`, `git_sha`, `dataset_id`, `feature_set_id`, `seed`, `decision`,
+`decided_by`. Fails clearly on a missing/malformed registry. No secrets are printed.
+
 ## What this layer does NOT do
 
 - No prediction, signal, alpha, label, or target columns
 - No model training
-- No backtesting
+- No backtesting (the experiment registry records metadata only; no run is executed)
 - No order / trade / position concepts
-- No Alpaca API calls, no `.env` reads, no network
+- No Alpaca API calls, no `.env` file reads, no network
 
 ## data/runs/ is local only
 
-`data/runs/` is git-ignored. Bars, feature Parquet files, and manifests are never committed.
+`data/runs/` is git-ignored. Bars, feature Parquet files, manifests, and the experiment
+registry are never committed.
