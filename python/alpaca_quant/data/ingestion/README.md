@@ -45,9 +45,34 @@ SSL certificate failures also include a macOS `Install Certificates.command` hin
 
 ## Controlled fetch run registry
 
-Each successful controlled fetch appends one metadata-only JSON object to the local JSONL registry
-at `data/runs/fetch_registry.jsonl` by default. Records contain provenance and artifact paths, never
-credentials; `data/runs/` remains ignored locally, and the registry contains no trading logic.
+Each successful controlled fetch appends one validated, metadata-only JSON object to a local
+append-only JSONL registry. The default path is:
+
+```
+data/runs/fetch_registry.jsonl
+```
+
+A custom path can be passed with `--registry PATH`. Records contain provenance and artifact
+paths only — **never** credentials, secrets, or trading logic. The `data/runs/` directory
+is git-ignored and remains entirely local; the registry is never committed.
+
+Each record captures: `run_id`, `created_at`, `symbols`, `start`, `end`, `feed`,
+`rows_written`, `output_dir`, `parquet_path`, `manifest_path`, `data_declaration_id`,
+`verification_passed`, `status`, and `known_gaps`. Secret values are actively rejected
+before the record is written.
+
+### Listing runs
+
+To print a non-secret summary of all recorded runs:
+
+```bash
+python scripts/list_fetch_runs.py
+# or with a custom registry path:
+python scripts/list_fetch_runs.py --registry data/runs/fetch_registry.jsonl
+```
+
+The output shows one row per run: `run_id`, `created_at`, `symbols`, `date_range`, `feed`,
+`rows_written`, `verification_passed`, and `status`. No secrets are printed.
 
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
