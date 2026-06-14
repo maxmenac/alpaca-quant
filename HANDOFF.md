@@ -2,11 +2,11 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: 8a3c075 feat: add experiment registry
-- Repo clean and synced with origin/main
+- Latest commit: 96a9a77 docs: add multi-source data layer roadmap direction
+- Repo clean and synced with origin/main (before Sprint 6A work)
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> feature factory -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -23,6 +23,18 @@ Feature factory (Sprint 3A + 3B):
 - manifest written to data/runs/<run>/features_<SYM>_manifest.yaml (local, not committed)
 - feature_set_id is deterministic: sha256(resolved_path:SYMBOL)[:8]
 - no-lookahead validated by test suite
+
+PIT read layer (Sprint 6A):
+- alpaca_quant.data.pit: load_pit_bars(bars_path, *, as_of, symbols=None, start=None),
+  assert_no_lookahead(df, as_of), PITReadError
+- as_of is required (keyword-only), inclusive knowledge cutoff; no row after as_of is returned
+- reads local Parquet via the DuckDB query layer; no network, no Alpaca API
+- assert_no_lookahead is the reusable hard gate for future backtester code
+- feature factory: build_pit_feature_set(bars_path, symbol, *, as_of) is the OFFICIAL path;
+  build_feature_set(...) kept as documented legacy raw path only (no new caller may use it)
+- compute_features CLI now REQUIRES --as-of (also accepts --run-dir for explicit paths);
+  routes through the PIT path; manifest records as_of
+- feature_set_id for PIT path is sensitive to as_of (distinct cutoffs => distinct ids)
 
 Research dataset layer (Sprint 4A + 4B):
 - load_research_dataset(bars_path, features_path, symbol, start, end, as_of)
@@ -72,7 +84,8 @@ Data sources — current & future direction:
   and survivorship bias.
 
 Next recommended sprint:
-PIT read layer (python/alpaca_quant/data/pit/ is still a stub) to enforce
-"features read only via the PIT layer, never raw" (ROADMAP Phase 2 output, DATA_QUALITY §4),
-then Phase 3 — honest backtester + null-model battery (writes experiment registry entries).
-Still no labels, no signals, no model training, no trading until the backtester sprint.
+Phase 3 — honest backtester + null-model battery. It should read bars via the PIT layer
+(load_pit_bars / assert_no_lookahead), build features via build_pit_feature_set, and write
+immutable entries to the experiment registry. A follow-up may remove the legacy raw
+build_feature_set once the backtester is fully on PIT.
+Still no labels, no signals, no model training, no trading until that sprint is explicitly scoped.

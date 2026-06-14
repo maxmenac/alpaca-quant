@@ -18,6 +18,14 @@ Alpaca API calls, and DuckDB indexing remains outside this sprint.
 Sprint 1E uses an in-memory DuckDB connection to query existing local Parquet files. It performs
 no real API calls, creates no persistent database, and contains no trading logic.
 
+## Point-in-time (PIT) read layer
+
+Sprint 6A adds `alpaca_quant.data.pit` — the sanctioned read path for feature computation.
+`load_pit_bars(bars_path, *, as_of, symbols=None, start=None)` reads local bars as known at the
+`as_of` knowledge cutoff (inclusive) and guarantees zero lookahead via `assert_no_lookahead`.
+Features read through this layer, never from raw Parquet directly (ARCHITECTURE.md P2 / §3.1).
+No real API calls, no network, no trading.
+
 ## Mock ingestion dry run
 
 Sprint 1F connects the Tier 0 manifest, Parquet writer, and DuckDB query layer using mocked bars
