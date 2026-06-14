@@ -4,7 +4,7 @@ import json
 import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -24,6 +24,11 @@ from alpaca_quant.data.alpaca_bars import (
 from alpaca_quant.data.duckdb_query import available_symbols, count_bars, query_bars
 from alpaca_quant.data.manifest import DataDeclaration
 from alpaca_quant.data.parquet_writer import write_bars_parquet
+from alpaca_quant.data.run_registry import (
+    FetchRunRecord,
+    append_fetch_run_record,
+    create_fetch_run_id,
+)
 
 DEFAULT_SYMBOLS = ["AAPL", "MSFT"]
 DEFAULT_START = "2024-01-02"
@@ -50,6 +55,8 @@ class ControlledFetchResult:
     end: str
     feed: str
     verification_passed: bool
+    run_id: str
+    registry_path: Path
 
 
 class _UrllibResponse:
@@ -113,6 +120,7 @@ def run_controlled_historical_fetch(
     timeframe: str = "1Day",
     adjustment: str = "raw",
     max_pages: int = DEFAULT_MAX_PAGES,
+    registry_path: Path | None = None,
     transport: HTTPTransport | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> ControlledFetchResult:
@@ -174,6 +182,34 @@ def run_controlled_historical_fetch(
             f"controlled historical fetch verification failed: {', '.join(failed_checks)}"
         )
 
+    created_at = datetime.now(UTC)
+    run_id = create_fetch_run_id(created_at)
+    resolved_registry_path = Path(registry_path or output_dir.parent / "fetch_registry.jsonl")
+    record = FetchRunRecord(
+        run_id=run_id,
+        created_at=created_at,
+        symbols=available,
+        start=start_date.isoformat(),
+        end=end_date.isoformat(),
+        feed=normalized_feed,
+        rows_written=rows_written,
+        output_dir=str(output_dir),
+        parquet_path=str(parquet_path),
+        manifest_path=str(manifest_path),
+        data_declaration_id=manifest.data_declaration_id,
+        verification_passed=True,
+        known_gaps=manifest.known_gaps,
+        status="success",
+    )
+    append_fetch_run_record(
+        resolved_registry_path,
+        record,
+        sensitive_values=(
+            config.api_key_id.get_secret_value(),
+            config.api_secret_key.get_secret_value(),
+        ),
+    )
+
     return ControlledFetchResult(
         output_dir=output_dir,
         parquet_path=parquet_path,
@@ -184,6 +220,8 @@ def run_controlled_historical_fetch(
         end=end_date.isoformat(),
         feed=normalized_feed,
         verification_passed=True,
+        run_id=run_id,
+        registry_path=resolved_registry_path,
     )
 
 

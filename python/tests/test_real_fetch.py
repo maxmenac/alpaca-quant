@@ -15,6 +15,7 @@ from alpaca_quant.data.real_fetch import (
     UrllibHTTPTransport,
     run_controlled_historical_fetch,
 )
+from alpaca_quant.data.run_registry import read_fetch_run_records
 
 
 class FakeResponse:
@@ -166,12 +167,19 @@ def test_mocked_fetch_writes_and_verifies_artifacts(tmp_path):
     assert result.symbols == ["AAPL", "MSFT"]
     assert result.verification_passed is True
     assert pl.read_parquet(result.parquet_path).height == 2
+    assert result.registry_path == tmp_path.parent / "fetch_registry.jsonl"
+    assert result.run_id
 
     manifest = yaml.safe_load(result.manifest_path.read_text(encoding="utf-8"))
     declaration = manifest["data_declaration"]
     assert declaration["tier"] == 0
     assert declaration["data_feed"] == "iex"
     assert declaration["known_gaps"]
+
+    records = read_fetch_run_records(result.registry_path)
+    assert records[-1].run_id == result.run_id
+    assert records[-1].data_declaration_id == declaration["data_declaration_id"]
+    assert records[-1].verification_passed is True
 
 
 def test_sip_historical_maps_to_api_sip_and_tier_one(tmp_path):

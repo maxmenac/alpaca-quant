@@ -15,8 +15,10 @@ from alpaca_quant.data.real_fetch import (  # noqa: E402
     ControlledFetchError,
     run_controlled_historical_fetch,
 )
+from alpaca_quant.data.run_registry import RunRegistryError  # noqa: E402
 
 DEFAULT_OUTPUT = Path("data/runs/alpaca_controlled_001")
+DEFAULT_REGISTRY = Path("data/runs/fetch_registry.jsonl")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -29,6 +31,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--end", default="2024-01-08")
     parser.add_argument("--feed", default="iex")
     parser.add_argument("--limit", type=int, default=1000)
+    parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     return parser.parse_args(argv)
 
 
@@ -43,6 +46,7 @@ def main() -> int:
             end=args.end,
             feed=args.feed,
             limit=args.limit,
+            registry_path=args.registry,
         )
     except (
         ConfigError,
@@ -50,6 +54,7 @@ def main() -> int:
         HistoricalBarsClientError,
         DuckDBQueryError,
         ParquetWriteError,
+        RunRegistryError,
         OSError,
     ) as exc:
         print(f"Controlled historical fetch failed: {exc}", file=sys.stderr)
@@ -64,6 +69,8 @@ def main() -> int:
     print(f"date_range: {result.start} to {result.end}")
     print(f"feed: {result.feed}")
     print(f"verification_passed: {result.verification_passed}")
+    print(f"run_id: {result.run_id}")
+    print(f"registry_path: {result.registry_path}")
     return 0
 
 

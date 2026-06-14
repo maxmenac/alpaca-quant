@@ -43,6 +43,12 @@ daily range, and includes no trading, backtesting, or live execution.
 Failed API calls include safe HTTP status and `X-Request-ID` diagnostics with secrets redacted.
 SSL certificate failures also include a macOS `Install Certificates.command` hint.
 
+## Controlled fetch run registry
+
+Each successful controlled fetch appends one metadata-only JSON object to the local JSONL registry
+at `data/runs/fetch_registry.jsonl` by default. Records contain provenance and artifact paths, never
+credentials; `data/runs/` remains ignored locally, and the registry contains no trading logic.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as

@@ -11,6 +11,7 @@ __pycache__/
 
 # Data lake contents — keep the directory structure, ignore the data
 data/*/*
+data/runs/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/features/.gitkeep
