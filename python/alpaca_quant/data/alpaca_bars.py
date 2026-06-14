@@ -147,6 +147,13 @@ class HistoricalBarsClient:
         request: HistoricalBarsRequest,
         page_token: str | None,
     ) -> dict[str, str | int]:
+        feed = request.feed or self._config.data_feed
+        if feed == "sip-realtime":
+            raise HistoricalBarsClientError(
+                "sip-realtime is not supported by the historical bars client"
+            )
+        api_feed = "sip" if feed == "sip-historical" else feed
+
         params: dict[str, str | int] = {
             "symbols": ",".join(request.symbols),
             "timeframe": request.timeframe,
@@ -154,7 +161,7 @@ class HistoricalBarsClient:
             "end": request.end.isoformat(),
             "limit": request.limit,
             "adjustment": request.adjustment,
-            "feed": request.feed or self._config.data_feed,
+            "feed": api_feed,
         }
         if page_token:
             params["page_token"] = page_token

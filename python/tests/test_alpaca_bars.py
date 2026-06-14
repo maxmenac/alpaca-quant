@@ -118,7 +118,14 @@ def test_request_feed_overrides_config(config):
 
     HistoricalBarsClient(config, transport).fetch_page(request(feed="sip-historical"))
 
-    assert transport.calls[0]["params"]["feed"] == "sip-historical"
+    assert transport.calls[0]["params"]["feed"] == "sip"
+
+
+def test_sip_realtime_rejected_for_historical_bars(config):
+    transport = FakeTransport([FakeResponse({"bars": {}, "next_page_token": None})])
+
+    with pytest.raises(HistoricalBarsClientError, match="sip-realtime"):
+        HistoricalBarsClient(config, transport).fetch_page(request(feed="sip-realtime"))
 
 
 def test_parse_one_page_response(config):
