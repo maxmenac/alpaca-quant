@@ -8,6 +8,11 @@ Every produced dataset must carry a validated `data_declaration` manifest record
 tier, universe provenance, survivorship and point-in-time guarantees, feed, date range, and known
 gaps. These declarations make data limitations explicit and gate how far research may be promoted.
 
+## Parquet writer
+
+Sprint 1D writes already-parsed `Bar` objects to local Parquet files only. It performs no real
+Alpaca API calls, and DuckDB indexing remains outside this sprint.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as
