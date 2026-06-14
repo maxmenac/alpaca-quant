@@ -2,11 +2,11 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: a291e9f feat: add PIT read layer enforcing as-of bar reads
-- Repo clean and synced with origin/main (before Phase 3A work)
+- Latest commit: 442f127 feat: add honest backtest engine core (PIT, costs, metrics)
+- Repo clean and synced with origin/main (before Phase 3B work)
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics)
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -41,6 +41,18 @@ Backtest engine core (Phase 3A):
   max_drawdown, annual_turnover, total_return, cagr, n_periods
 - costs from configs/costs.yaml; stress none/2x/5x defined (exercised by null battery in 3B)
 - PURE LIBRARY: no experiment-registry wiring, no CLI in 3A
+
+Null-model battery (Phase 3B):
+- alpaca_quant.backtest.null_models: run_null_battery, NullBatteryReport, NullModelResult,
+  random_weights, shuffled_weights, shifted_weights, future_leak_weights, NullBatteryError
+- DIAGNOSTIC, not a strategy: transforms caller weights (or reruns under cost stress) through
+  run_backtest; makes NO alpha claim; gates nothing (human reads report, decides)
+- variants: random (seeded uniform), shuffled (seeded permutation), shifted (+1 per symbol),
+  future_leak (weight = sign(forward_return) -> must EXPLODE), cost_stress_2x / cost_stress_5x
+- deterministic seeds (random<-seed, shuffled<-seed+1; leak/baseline/cost-stress seed-free)
+- advisory diagnostics on report: future_leak_detected, random_near_zero, shuffled_near_zero
+- transforms fill null weights with 0.0 so the engine never rejects them
+- PURE LIBRARY: no CLI, no registry wiring, no real alpha/optimizer/model training in 3B
 
 PIT read layer (Sprint 6A):
 - alpaca_quant.data.pit: load_pit_bars(bars_path, *, as_of, symbols=None, start=None),
@@ -102,8 +114,7 @@ Data sources — current & future direction:
   and survivorship bias.
 
 Next recommended sprint:
-Phase 3B — Null-Model Battery on top of the engine: random signal, shifted signal,
-shuffled outcomes, future-leak trap (must EXPLODE), cost stress x2/x5. This is what proves the
-engine is not broken (noise -> Sharpe ~ 0; deliberate leak -> unrealistic Sharpe).
-Then Phase 3C — wire backtest runs into the experiment registry (fill metrics) + report + CLI.
+Phase 3C — wire backtest runs + null-battery reports into the experiment registry (fill the
+metrics placeholder), add a report/summary surface, and a local CLI. Reads bars via PIT,
+features via build_pit_feature_set, scores via run_backtest, sanity via run_null_battery.
 Still no real alpha generation or model training until Phase 4.

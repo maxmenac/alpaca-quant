@@ -54,11 +54,44 @@ that would be lookahead. They live strictly on the evaluation side.
 `load_cost_model("configs/costs.yaml", stress="none"|"2x"|"5x")` reads the committed cost
 assumptions; the stress multipliers are defined for the null-model battery in a later sprint.
 
-## Scope (Phase 3A)
+## Null-model battery (Phase 3B)
 
-In: forward-return outcomes, linear cost model, honest metrics (Sharpe, Sortino, max drawdown,
-turnover, total return, CAGR; 252-day annualization; Sharpe/Sortino = 0.0 when variance is
-zero), multi-symbol portfolio aggregation.
+A diagnostic battery that tests whether the **engine** is sane before any real alpha is trusted
+(RESEARCH_PROTOCOL.md §2). It is **not a strategy**: it transforms whatever weights it is handed
+(or reruns them under cost stress) through `run_backtest`, and makes **no alpha claim**.
 
-Deferred: null-model battery (3B), experiment-registry-integrated runs + report + CLI (3C),
-real alphas (Phase 4).
+```python
+from alpaca_quant.backtest import run_null_battery
+
+report = run_null_battery(df, base_weight_col="weight", horizon=1, seed=12345)
+report.future_leak_detected   # engine sanity: a deliberate leak must explode
+report.as_dict()              # all variants + metrics
+```
+
+Variants (all deterministic via `seed`):
+
+| Variant | What it does | Expectation |
+|---|---|---|
+| `random_weights` | seeded uniform weights in [-1, 1] | Sharpe ≈ 0 |
+| `shuffled_weights` | seeded permutation of the weights | Sharpe ≈ 0 |
+| `shifted_weights` | weights shifted +1 period per symbol | edge collapses / never improves |
+| `future_leak` | weight = `sign(forward_return)` (controlled cheat) | Sharpe **explodes** |
+| `cost_stress_2x` / `cost_stress_5x` | baseline weights at slippage ×2 / ×5 | degrades; shows margin |
+
+The **future-leak trap is the most valuable check**: it tests the *engine*, not an alpha. If a
+position that peeks at its own outcome does **not** produce an absurd Sharpe, the engine (or the
+trap) is broken and must be fixed before trusting any result. `future_leak_detected` surfaces
+this; `random_near_zero` / `shuffled_near_zero` are advisory. **All diagnostics are advisory —
+the human reads the report and decides (recommends / approves).** The battery gates nothing.
+
+## Scope
+
+Phase 3A — In: forward-return outcomes, linear cost model, honest metrics (Sharpe, Sortino, max
+drawdown, turnover, total return, CAGR; 252-day annualization; Sharpe/Sortino = 0.0 when
+variance is zero), multi-symbol portfolio aggregation.
+
+Phase 3B — In: null-model battery (random / shuffled / shifted / future-leak / cost stress),
+deterministic seeds, advisory diagnostics. Still no alpha, no strategy discovery, no optimizer,
+no model training, no CLI.
+
+Deferred: experiment-registry-integrated runs + report + CLI (3C), real alphas (Phase 4).

@@ -16,6 +16,16 @@ from alpaca_quant.backtest.metrics.metrics import (
     compute_metrics,
     equity_curve,
 )
+from alpaca_quant.backtest.null_models import (
+    NullBatteryError,
+    NullBatteryReport,
+    NullModelResult,
+    future_leak_weights,
+    random_weights,
+    run_null_battery,
+    shifted_weights,
+    shuffled_weights,
+)
 from alpaca_quant.backtest.outcomes import OutcomeError, forward_returns
 
 __all__ = [
@@ -25,10 +35,18 @@ __all__ = [
     "BacktestResult",
     "CostModel",
     "CostModelError",
+    "NullBatteryError",
+    "NullBatteryReport",
+    "NullModelResult",
     "OutcomeError",
     "compute_metrics",
     "equity_curve",
     "forward_returns",
+    "future_leak_weights",
     "load_cost_model",
+    "random_weights",
     "run_backtest",
+    "run_null_battery",
+    "shifted_weights",
+    "shuffled_weights",
 ]
