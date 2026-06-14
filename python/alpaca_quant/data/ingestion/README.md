@@ -29,6 +29,17 @@ Run `python scripts/run_mock_ingestion_dry_run.py --output data/runs/mock_001` f
 root. The command uses mocked bars only, makes no real Alpaca API call, and contains no trading
 logic.
 
+## Controlled real Alpaca historical fetch
+
+Run from the repository root:
+
+```bash
+python scripts/run_controlled_historical_fetch.py --output data/runs/alpaca_controlled_001 --symbols AAPL,MSFT --start 2024-01-02 --end 2024-01-08 --feed iex
+```
+
+The command requires `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`, defaults to a tiny AAPL/MSFT
+daily range, and includes no trading, backtesting, or live execution.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as
