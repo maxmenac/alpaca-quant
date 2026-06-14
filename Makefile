@@ -1,9 +1,11 @@
 .PHONY: test test-python test-go lint tree
 
+PYTHON ?= python3
+
 test: test-python test-go
 
 test-python:
-	python -m pytest python/tests
+	$(PYTHON) -m pytest python/tests
 
 test-go:
 	cd go && gofmt -w . && go test ./...
