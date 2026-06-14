@@ -2,11 +2,11 @@
 
 Latest clean state:
 - Branch: main
-- Latest commit: 96a9a77 docs: add multi-source data layer roadmap direction
-- Repo clean and synced with origin/main (before Sprint 6A work)
+- Latest commit: a291e9f feat: add PIT read layer enforcing as-of bar reads
+- Repo clean and synced with origin/main (before Phase 3A work)
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics)
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -23,6 +23,24 @@ Feature factory (Sprint 3A + 3B):
 - manifest written to data/runs/<run>/features_<SYM>_manifest.yaml (local, not committed)
 - feature_set_id is deterministic: sha256(resolved_path:SYMBOL)[:8]
 - no-lookahead validated by test suite
+
+Backtest engine core (Phase 3A):
+- alpaca_quant.backtest: run_backtest, BacktestResult, BacktestError, forward_returns,
+  CostModel/load_cost_model, BacktestMetrics/compute_metrics/equity_curve
+- outcomes.forward_returns = EVALUATION OUTCOMES only (never features, never alpha labels);
+  last `horizon` bars per symbol are null and excluded from PnL
+- run_backtest(df, *, weight_col="weight", horizon=1, cost_model=None, as_of=None):
+  - scores CALLER-PROVIDED weights; engine never generates alpha/signals/predictions
+  - causal alignment: pnl_t = weight_t * forward_return(t->t+horizon)
+  - costs charged on turnover |w_t - w_{t-1}| per symbol (first realizable bar = entry from flat)
+  - multi-symbol portfolio = sum across symbols per timestamp
+  - if as_of given, assert_no_lookahead (PIT) rejects any row after the cutoff
+  - output frame columns: timestamp, gross_return, cost, net_return, equity
+  - NEVER creates/requires columns: signal, alpha, prediction, target, order, trade
+- metrics: Sharpe/Sortino (252 annualization; 0.0 when variance/downside variance is zero),
+  max_drawdown, annual_turnover, total_return, cagr, n_periods
+- costs from configs/costs.yaml; stress none/2x/5x defined (exercised by null battery in 3B)
+- PURE LIBRARY: no experiment-registry wiring, no CLI in 3A
 
 PIT read layer (Sprint 6A):
 - alpaca_quant.data.pit: load_pit_bars(bars_path, *, as_of, symbols=None, start=None),
@@ -84,8 +102,8 @@ Data sources — current & future direction:
   and survivorship bias.
 
 Next recommended sprint:
-Phase 3 — honest backtester + null-model battery. It should read bars via the PIT layer
-(load_pit_bars / assert_no_lookahead), build features via build_pit_feature_set, and write
-immutable entries to the experiment registry. A follow-up may remove the legacy raw
-build_feature_set once the backtester is fully on PIT.
-Still no labels, no signals, no model training, no trading until that sprint is explicitly scoped.
+Phase 3B — Null-Model Battery on top of the engine: random signal, shifted signal,
+shuffled outcomes, future-leak trap (must EXPLODE), cost stress x2/x5. This is what proves the
+engine is not broken (noise -> Sharpe ~ 0; deliberate leak -> unrealistic Sharpe).
+Then Phase 3C — wire backtest runs into the experiment registry (fill metrics) + report + CLI.
+Still no real alpha generation or model training until Phase 4.
