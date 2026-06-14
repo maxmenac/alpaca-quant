@@ -18,6 +18,11 @@ Alpaca API calls, and DuckDB indexing remains outside this sprint.
 Sprint 1E uses an in-memory DuckDB connection to query existing local Parquet files. It performs
 no real API calls, creates no persistent database, and contains no trading logic.
 
+## Mock ingestion dry run
+
+Sprint 1F connects the Tier 0 manifest, Parquet writer, and DuckDB query layer using mocked bars
+only. It performs no real Alpaca API calls and contains no trading logic.
+
 ## Future behavior (Sprint 1 — Alpaca historical daily bars)
 
 - Download Alpaca **daily** bars from the **SIP historical** feed (free, queryable as
