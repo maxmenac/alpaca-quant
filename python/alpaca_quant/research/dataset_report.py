@@ -232,6 +232,21 @@ def build_dataset_inspection_report(
                 )
             )
 
+    # Standalone provenance flag: the source itself carries no availability time. We do NOT
+    # synthesize or infer an available_at — absence is detected and reported only.
+    has_available_at_column = "available_at" in frame.columns
+    has_reference_availability = any(
+        info.get("present") for info in asof_summary.get("columns", {}).values()
+    )
+    if not has_available_at_column and not has_reference_availability:
+        reasons.append(
+            _reason(
+                "missing_available_at_semantics",
+                VERDICT_SUSPECT,
+                "source carries no availability time; as-of provenance cannot be proven.",
+            )
+        )
+
     # --- split summaries (validate definitions only; NO CV is run) ---
     split_summaries: list[dict[str, Any]] = []
     for split in splits:

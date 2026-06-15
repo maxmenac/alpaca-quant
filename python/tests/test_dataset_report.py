@@ -129,6 +129,20 @@ def test_pit_and_identity_coverage_present() -> None:
 
 
 def test_verdict_ok_when_fully_specified() -> None:
+    # A genuinely fully-specified dataset declares universe, identity, AND availability
+    # semantics (a reference table carrying available_at).
+    closes = [100.0, 110.0, 121.0, 130.0, 140.0, 150.0]
+    bars = pl.DataFrame(
+        {
+            "symbol": ["AAPL"] * len(closes),
+            "timestamp": [_day(2 + i) for i in range(len(closes))],
+            "close": closes,
+        }
+    )
+    labels = build_forward_return_labels(bars)
+    features = bars.select(["symbol", "timestamp"]).with_columns(
+        pl.Series(FEATURE, [float(i + 1) * 1000.0 for i in range(len(closes))])
+    )
     universe = pl.DataFrame(
         {"symbol": ["AAPL"], "valid_from": [_day(1)], "valid_to": [None]},
         schema_overrides={"valid_to": pl.Datetime(time_zone="UTC")},
@@ -142,7 +156,19 @@ def test_verdict_ok_when_fully_specified() -> None:
         },
         schema_overrides={"valid_to": pl.Datetime(time_zone="UTC")},
     )
-    res = _dataset(universe=universe, identity=identity)
+    reference = pl.DataFrame({"symbol": ["AAPL"], "available_at": [_day(2)], "eps": [1.5]})
+    res = assemble_ml_dataset(
+        labels=labels,
+        features=features,
+        feature_specs=[FeatureSpec(FEATURE)],
+        label_columns=[LABEL],
+        universe=universe,
+        identity=identity,
+        reference=reference,
+        reference_value_columns=["eps"],
+        config=DatasetConfig(),
+        clock=_frozen_clock,
+    )
     report = _report(res, build_registry([_neutral()]))
     assert report["verdict"] == VERDICT_OK
     assert report["symbol_identity_coverage"]["identity_used"] is True
@@ -230,3 +256,53 @@ def test_attach_feature_set_id_records_id() -> None:
 def test_markdown_rejects_bad_schema() -> None:
     with pytest.raises(DatasetReportError):
         render_dataset_inspection_markdown({"schema_version": 99})
+
+
+# --- Change 1: standalone "source lacks availability semantics" flag --------
+
+_NO_AVAIL_MSG = "source carries no availability time; as-of provenance cannot be proven."
+
+
+def test_missing_available_at_semantics_flagged_when_source_has_none() -> None:
+    res = _dataset()  # bars-only dataset, no available_at, no reference table
+    report = _report(res, build_registry([_neutral()]))
+    assert any(
+        w["code"] == "missing_available_at_semantics" and w["message"] == _NO_AVAIL_MSG
+        for w in report["warnings"]
+    )
+    assert report["verdict"] in {VERDICT_SUSPECT, VERDICT_REJECTED}
+
+
+def _dataset_with_reference():
+    closes = [100.0, 110.0, 121.0, 130.0, 140.0, 150.0]
+    bars = pl.DataFrame(
+        {
+            "symbol": ["AAPL"] * len(closes),
+            "timestamp": [_day(2 + i) for i in range(len(closes))],
+            "close": closes,
+        }
+    )
+    labels = build_forward_return_labels(bars)
+    features = bars.select(["symbol", "timestamp"]).with_columns(
+        pl.Series(FEATURE, [float(i + 1) * 1000.0 for i in range(len(closes))])
+    )
+    reference = pl.DataFrame(
+        {"symbol": ["AAPL"], "available_at": [_day(2)], "eps": [1.5]}
+    )
+    return assemble_ml_dataset(
+        labels=labels,
+        features=features,
+        feature_specs=[FeatureSpec(FEATURE)],
+        label_columns=[LABEL],
+        reference=reference,
+        reference_value_columns=["eps"],
+        config=DatasetConfig(synthetic_no_universe=True),
+        clock=_frozen_clock,
+    )
+
+
+def test_standalone_availability_flag_absent_when_reference_provides_semantics() -> None:
+    res = _dataset_with_reference()
+    report = _report(res, build_registry([_neutral()]))
+    # the as-of reference column IS present -> no standalone "no availability time" warning
+    assert not any(w["message"] == _NO_AVAIL_MSG for w in report["warnings"])

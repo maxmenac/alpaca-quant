@@ -404,6 +404,16 @@ CLI: `python scripts/inspect_dataset.py --dataset ... --manifest ... --feature-r
 --output-json ... --output-md ...` writes only the report (JSON/Markdown) to caller paths — never
 into `data/runs/`.
 
+### 4D-1 hardening — provenance blind-spot flags (detect, never mutate)
+
+The inspection layer surfaces three provenance conditions found by the 4E-0 real-data run. Each
+is **detection/classification only** — no value is synthesized, inferred, normalized, or filled.
+
+- **`missing_available_at_semantics` (standalone, SUSPECT).** When the inspected source carries no
+  `available_at` column and no reference availability semantics at all, as-of provenance cannot be
+  proven, so the report flags it even though no reference table was passed. The absent
+  `available_at` is never created or inferred.
+
 ## What this layer does NOT do
 
 - No prediction, signal, alpha, strategy, weight, or order generation
