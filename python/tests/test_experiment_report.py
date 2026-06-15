@@ -105,7 +105,7 @@ def test_payload_keys(tmp_path: Path) -> None:
 def test_markdown_contains_metrics_and_verdicts(tmp_path: Path) -> None:
     md = render_markdown(_payload(tmp_path))
     assert "# Backtest experiment exp-test-001" in md
-    assert "sharpe" in md
+    assert "Sharpe net" in md
     assert "future_leak_detected" in md
 
 
@@ -248,7 +248,7 @@ def test_engine_suspect_renders_at_top(tmp_path: Path) -> None:
     md = render_markdown(payload)
     # The ENGINE_SUSPECT banner appears before the headline metrics.
     assert "ENGINE_SUSPECT" in md
-    assert md.index("ENGINE_SUSPECT") < md.index("## Headline metrics")
+    assert md.index("ENGINE_SUSPECT") < md.index("## Headline Metrics")
 
 
 def test_missing_null_battery_is_not_clean_ok() -> None:
@@ -341,3 +341,58 @@ def test_validate_passes_on_complete_payload(tmp_path: Path) -> None:
     payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
     # Should not raise.
     validate_report_payload(payload)
+
+
+# --- Phase 3D-4: report readability polish ---
+
+
+def test_markdown_labels_headline_metrics_as_net_of_costs(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    md = render_markdown(payload)
+    assert "Performance metrics are calculated from net returns after costs." in md
+    assert "| Sharpe net |" in md
+    assert "| Sortino net |" in md
+    assert "| Total return net |" in md
+    assert "| CAGR net |" in md
+    # Internal JSON keys remain stable for downstream consumers.
+    assert "sharpe" in payload["headline_metrics"]
+    assert "sortino" in payload["headline_metrics"]
+
+
+def test_markdown_includes_regime_pnl_placeholder(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    assert "## Regime PnL" in md
+    assert "Regime PnL: not available in this report." in md
+
+
+def test_markdown_includes_plot_references_placeholder(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    assert "## Plot References" in md
+    assert "Plots: not generated for this report." in md
+
+
+def test_markdown_top_sections_are_ordered_and_prior_hardening_remains(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    ordered_markers = (
+        "# Backtest experiment",
+        "Report health:",
+        "## Reproducibility",
+        "## Data Declaration",
+        "## Null Battery Verdict",
+        "## Headline Metrics",
+        "## Regime PnL",
+        "## Plot References",
+        "## Safety Boundary",
+    )
+    positions = [md.index(marker) for marker in ordered_markers]
+    assert positions == sorted(positions)
+    assert "Tier 0 data validates code, not strategy." not in md
+    assert "future-leak trap" in md
+    assert "Replay requires: git_sha" in md
+
+
+def test_fail_closed_validation_still_precedes_polished_rendering(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    del payload["reproducibility"]["created_at"]
+    with pytest.raises(ExperimentReportError, match="created_at"):
+        render_markdown(payload)

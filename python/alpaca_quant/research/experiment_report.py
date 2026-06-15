@@ -388,6 +388,7 @@ def _render_reproducibility(payload: dict[str, Any]) -> list[str]:
         "|---|---|",
         f"| run_id | {repro.get('run_id', UNKNOWN)} |",
         f"| created_at | {repro.get('created_at', UNKNOWN)} |",
+        f"| as_of | {payload.get('as_of', UNKNOWN)} |",
         f"| git_sha | {repro.get('git_sha', UNKNOWN)} |",
         f"| dataset_id | {repro.get('dataset_id', UNKNOWN)} |",
         f"| data_declaration_id | {repro.get('data_declaration_id', UNKNOWN)} |",
@@ -416,6 +417,26 @@ def _render_reproducibility(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_regime_pnl() -> list[str]:
+    """Render the explicit regime-analysis availability statement."""
+    return [
+        "## Regime PnL",
+        "",
+        "Regime PnL: not available in this report.",
+        "",
+    ]
+
+
+def _render_plot_references() -> list[str]:
+    """Render the explicit plot availability statement."""
+    return [
+        "## Plot References",
+        "",
+        "Plots: not generated for this report.",
+        "",
+    ]
+
+
 def render_markdown(payload: dict[str, Any]) -> str:
     """Render a human-readable Markdown summary from the report payload (fail-closed)."""
     validate_report_payload(payload)
@@ -425,29 +446,30 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"# Backtest experiment {payload['run_id']}",
         "",
         *_render_report_health(payload),
-        f"- as_of: {payload['as_of']}",
-        f"- seed: {payload['seed']}",
-        f"- config_hash: {payload['config_hash']}",
-        f"- weight_source: {payload['weight_source']}",
-        "",
         *_render_reproducibility(payload),
         *_render_data_declaration(payload),
         *_render_null_battery_verdict(payload),
-        "## Headline metrics",
+        "## Headline Metrics",
+        "",
+        "_Performance metrics are calculated from net returns after costs._",
         "",
         "| metric | value |",
         "|---|---|",
-        f"| sharpe | {h['sharpe']:.4f} |",
-        f"| sortino | {h['sortino']:.4f} |",
-        f"| max_drawdown | {h['max_drawdown']:.4f} |",
-        f"| annual_turnover | {h['annual_turnover']:.4f} |",
-        f"| total_return | {h['total_return']:.4f} |",
-        f"| cagr | {h['cagr']:.4f} |",
-        f"| n_periods | {h['n_periods']} |",
+        f"| Sharpe net | {h['sharpe']:.4f} |",
+        f"| Sortino net | {h['sortino']:.4f} |",
+        f"| Max drawdown | {h['max_drawdown']:.4f} |",
+        f"| Annual turnover | {h['annual_turnover']:.4f} |",
+        f"| Total return net | {h['total_return']:.4f} |",
+        f"| CAGR net | {h['cagr']:.4f} |",
+        f"| Periods | {h['n_periods']} |",
         "",
-        "## Null-model battery (advisory diagnostics — the human decides)",
+        *_render_regime_pnl(),
+        *_render_plot_references(),
+        "## Null-model Battery Diagnostics",
         "",
-        "| variant | sharpe | total_return |",
+        "_Advisory diagnostics; the human decides._",
+        "",
+        "| variant | Sharpe net | Total return net |",
         "|---|---|---|",
         f"| baseline | {nb['baseline']['sharpe']:.4f} | {nb['baseline']['total_return']:.4f} |",
         f"| random | {nb['random_weights']['sharpe']:.4f} | "
@@ -468,6 +490,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- future_leak_detected: {nb['future_leak_detected']}",
         f"- random_near_zero: {nb['random_near_zero']}",
         f"- shuffled_near_zero: {nb['shuffled_near_zero']}",
+        "",
+        "## Safety Boundary",
         "",
         "_No trading, no model training, no live execution, no order submission._",
         "",

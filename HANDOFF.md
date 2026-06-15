@@ -191,6 +191,27 @@ Report hardening (Phase 3D-3 — reproducibility fingerprint + fail-closed schem
   alphas / weight generation) must be explicitly scoped: it is where signal generation begins
   and each alpha goes through the null battery + promotion gate. Do not start it implicitly.
 
+Report hardening (Phase 3D-4 — report readability polish):
+- experiment_report.py keeps established JSON metric keys stable and clarifies Markdown display:
+  - headline performance labels explicitly say net where applicable: Sharpe net, Sortino net,
+    Total return net, and CAGR net
+  - the headline section states that performance metrics use net returns after costs
+  - null-model diagnostic table labels are also explicitly net-of-cost
+- Markdown top sections now follow the audit-first order: title, health, reproducibility, data
+  declaration, null battery verdict, headline metrics, Regime PnL, Plot References, then
+  diagnostics and the existing safety boundary
+- the current payload has no regime diagnostics or plot references, so reports say explicitly:
+  - "Regime PnL: not available in this report."
+  - "Plots: not generated for this report."
+- report-layer only: no engine, alpha, strategy, model, optimizer, portfolio, signal/weight
+  generation, trading, order, or API logic changed
+- verification:
+    make lint
+    make test
+- recommendation: pause after Phase 3D-4 before Phase 4
+- warning: Phase 4 begins signal / weight / alpha territory and must be explicitly scoped before
+  any implementation starts
+
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
 - data/runs/ ignored, do not commit data artifacts
