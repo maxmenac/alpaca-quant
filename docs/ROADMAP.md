@@ -55,6 +55,12 @@ without an explicit roadmap decision.
   deterministic fingerprint/manifest, no alpha/signal/weight/model.
 - [x] **Phase 4B QA only** : JSON/Markdown target-quality report, null/distribution audits,
   manifest consistency warnings, no backtest/alpha/signal/model/weight expansion.
+- [x] **Phase 4C dataset assembly only** : PIT-safe `(X, y)` assembly behind an adjusted-close /
+  PIT universe / `available_at` as-of / symbol-identity data contract. Eligibility flags + null
+  matrix + lineage fingerprint + `OK`/`SUSPECT` manifest; purged + embargoed split *definitions*
+  (index sets) only. **No model training, no CV execution, no alpha/signal/strategy/optimizer/
+  weight/portfolio/backtest/trading.** Split definitions are prepared for future ML but train
+  nothing. Phase 4D must be explicitly scoped.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).

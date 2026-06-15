@@ -10,6 +10,20 @@ backtests; records metadata only, no backtest runs yet).
 No trading, no model training, no Alpaca API calls.
 """
 
+from alpaca_quant.research.data_contract import (
+    ADJ_BACK_ADJUSTED,
+    ADJ_NOT_APPLICABLE,
+    ADJ_PIT_SAFE,
+    ADJ_UNKNOWN,
+    AVAILABILITY_LAGGED,
+    AVAILABILITY_POINT_IN_TIME,
+    DataContractError,
+    FeatureSpec,
+    assert_features_acceptable,
+    classify_feature_specs,
+    feature_availability_summary,
+    normalize_feature_specs,
+)
 from alpaca_quant.research.dataset import (
     ResearchDatasetError,
     ResearchDatasetManifest,
@@ -17,6 +31,13 @@ from alpaca_quant.research.dataset import (
     build_research_dataset_manifest,
     load_research_dataset,
     summarize_research_dataset,
+)
+from alpaca_quant.research.dataset_manifest import (
+    DatasetManifest,
+    DatasetManifestError,
+    build_dataset_manifest,
+    fingerprint_dataset,
+    render_dataset_manifest_markdown,
 )
 from alpaca_quant.research.experiment_registry import (
     ExperimentRecord,
@@ -33,6 +54,27 @@ from alpaca_quant.research.experiment_runner import (
     compute_config_hash,
     flatten_experiment_metrics,
     run_backtest_experiment,
+)
+from alpaca_quant.research.ml_dataset import (
+    AssembledMLDataset,
+    DatasetConfig,
+    MLDatasetError,
+    assemble_ml_dataset,
+)
+from alpaca_quant.research.pit_joins import (
+    PitJoinError,
+    annotate_universe_membership,
+    asof_join_reference,
+    asof_join_summary,
+    resolve_permanent_ids,
+)
+from alpaca_quant.research.splits import (
+    SplitDefinitionError,
+    TemporalSplit,
+    assert_split_disjoint_and_purged,
+    make_temporal_split,
+    split_definitions_for_manifest,
+    split_summary,
 )
 from alpaca_quant.research.target_report import (
     BOUNDARY_NOTE,
@@ -53,6 +95,38 @@ from alpaca_quant.research.targets import (
 )
 
 __all__ = [
+    "ADJ_BACK_ADJUSTED",
+    "ADJ_NOT_APPLICABLE",
+    "ADJ_PIT_SAFE",
+    "ADJ_UNKNOWN",
+    "AVAILABILITY_LAGGED",
+    "AVAILABILITY_POINT_IN_TIME",
+    "AssembledMLDataset",
+    "DataContractError",
+    "DatasetConfig",
+    "DatasetManifest",
+    "DatasetManifestError",
+    "FeatureSpec",
+    "MLDatasetError",
+    "PitJoinError",
+    "SplitDefinitionError",
+    "TemporalSplit",
+    "annotate_universe_membership",
+    "asof_join_reference",
+    "asof_join_summary",
+    "assemble_ml_dataset",
+    "assert_features_acceptable",
+    "assert_split_disjoint_and_purged",
+    "build_dataset_manifest",
+    "classify_feature_specs",
+    "feature_availability_summary",
+    "fingerprint_dataset",
+    "make_temporal_split",
+    "normalize_feature_specs",
+    "render_dataset_manifest_markdown",
+    "resolve_permanent_ids",
+    "split_definitions_for_manifest",
+    "split_summary",
     "ExperimentRecord",
     "ExperimentRegistryError",
     "ExperimentRunError",

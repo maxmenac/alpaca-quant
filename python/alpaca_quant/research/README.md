@@ -284,9 +284,71 @@ result.report_paths  # JSON (canonical) + Markdown (human)
 - **`config_hash`** is a deterministic `sha256:` over the result-determining config.
 - CLI: `python scripts/run_experiment.py --bars ... --weights ... --as-of ... --weight-source ...`
 
+## ML dataset assembly + data contract (Phase 4C)
+
+Phase 4C assembles a **point-in-time-safe `(X, y)` dataset** from existing features and Phase 4A
+labels behind a strict adjusted-close / PIT / `available_at` data contract. Its only question is
+*"can we assemble X and y without silently leaking future information?"* — never *"can we predict
+returns?"*. **It trains no model, runs no cross-validation, and generates no alpha, signal,
+strategy, weight, portfolio, optimizer, backtest, or order.** Split definitions are index sets
+prepared for a future phase; nothing is trained here.
+
+```python
+from alpaca_quant.research import (
+    FeatureSpec, DatasetConfig, assemble_ml_dataset,
+    make_temporal_split, assert_split_disjoint_and_purged,
+    render_dataset_manifest_markdown,
+)
+
+result = assemble_ml_dataset(
+    labels=labelled_panel,                 # Phase 4A: one row per (symbol, timestamp) + label_*
+    features=feature_panel,                # mechanical, pass-through features (never recomputed)
+    feature_specs=[FeatureSpec("dollar_volume")],
+    label_columns=["label_forward_return_1d"],
+    target_manifest=target_manifest,       # Phase 4A manifest -> lineage fingerprint
+    universe=pit_universe,                 # optional: symbol/permanent_id, valid_from, valid_to
+    identity=symbol_identity,              # optional: permanent_id, ticker, valid_from, valid_to
+    reference=fundamentals,                # optional: needs available_at (as-of join)
+    reference_value_columns=["eps"],
+    config=DatasetConfig(),                # PIT universe enforced unless synthetic_no_universe
+)
+result.frame      # stably sorted (id, timestamp); features, labels, + eligibility metadata
+result.manifest   # lineage, null matrix, universe coverage, as-of summary, fingerprint, verdict
+```
+
+Contract enforced (fail closed / mark `SUSPECT`, never silently coerce):
+
+- **Adjusted-close caveat.** Return labels are back-adjustment invariant when computed
+  consistently. Price-level features using **back-adjusted** prices are *rejected*; **unknown**
+  adjustment provenance is marked `SUSPECT`; only `pit_safe` (as-reported) price levels pass.
+- **PIT universe / anti-survivorship.** A row is eligible only if the symbol is in the universe
+  at that timestamp (`valid_from <= t <= valid_to`, open-ended `valid_to` allowed). Missing
+  universe marks `SUSPECT` unless `synthetic_no_universe` is explicit.
+- **As-of joins.** Reference/fundamental values join on real availability time
+  (`available_at <= timestamp`, backward per id). Late-published values never appear early;
+  restatements preserve the value known as of `t`. Missing `available_at` fails closed.
+- **Symbol identity.** `permanent_id` is preferred for lineage; tickers are mapped only within
+  date bounds (never merged blindly). No identity table → fall back to ticker + `SUSPECT`.
+- **Feature cutoff vs label entry.** `feature_cutoff_time` is the prior bar (lag ≥ 1), strictly
+  before the row timestamp; feature windows never overlap the forward label window.
+
+Rows are **never silently dropped, filled, imputed, or globally scaled** — each carries
+`eligible` / `eligibility_reason`, and the manifest records null counts and exclusion reasons.
+
+Purged + embargoed temporal split **definitions** (`make_temporal_split`) produce
+train/validation/test index sets: training rows whose label window overlaps evaluation are
+purged, and an embargo of at least `max_horizon` bars is removed before each evaluation block.
+`assert_split_disjoint_and_purged` fails closed on any violation. **No CV is run.**
+
+CLI: `python scripts/assemble_dataset.py --labels ... --features ... --spec ... --output-json ...
+--output-md ...` writes only the manifest (JSON/Markdown) and, optionally, the dataset to a
+caller-specified path — never into `data/runs/`.
+
 ## What this layer does NOT do
 
 - No prediction, signal, alpha, strategy, weight, or order generation
+- No model training, no `.fit()`, no fit/transform, no cross-validation execution, no global
+  scaling — Phase 4C assembles datasets and split *definitions* only
 - The only target generation is the separate Phase 4A forward-return label module described
   above; labels are future outcomes, never model inputs or features
 - No optimizer, no strategy discovery, no model training

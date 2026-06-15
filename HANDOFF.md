@@ -6,7 +6,7 @@ Latest clean checkpoint before Phase 4A integration:
 - Repo clean and synced with origin/main
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> target/label foundation -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI)
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> target/label foundation -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI) -> ML dataset assembly + data contract (PIT-safe X/y, no training)
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -285,7 +285,33 @@ Data sources — current & future direction:
   free sources are treated cautiously because of rate limits, unofficial APIs, delayed/EOD data,
   and survivorship bias.
 
+ML dataset assembly + data contract (Phase 4C):
+- alpaca_quant.research: assemble_ml_dataset, FeatureSpec, DatasetConfig, AssembledMLDataset,
+  make_temporal_split, assert_split_disjoint_and_purged, build_dataset_manifest,
+  render_dataset_manifest_markdown, fingerprint_dataset, annotate_universe_membership,
+  asof_join_reference, resolve_permanent_ids
+- modules: research/data_contract.py, research/pit_joins.py, research/splits.py,
+  research/ml_dataset.py, research/dataset_manifest.py
+- ASSEMBLES A PIT-SAFE (X, y) DATASET ONLY. No model training, no .fit(), no fit/transform,
+  no cross-validation execution, no alpha/signal/strategy/weight/portfolio/optimizer/backtest/
+  order/trading, no Alpaca API, no network, no .env, no global scaling, no fillna/imputation.
+- Data contract enforced: adjusted-close safety (back-adjusted price-level features rejected,
+  unknown adjustment -> SUSPECT, only pit_safe passes); PIT universe / anti-survivorship
+  (valid_from <= t <= valid_to, open-ended allowed; missing universe -> SUSPECT unless
+  synthetic_no_universe); as-of joins (available_at <= timestamp, backward per id,
+  restatement-preserving, missing available_at fails closed); symbol identity (date-bounded
+  ticker -> permanent_id, never blind-merged; missing identity -> SUSPECT); feature cutoff is
+  the prior bar, strictly before the row timestamp = label entry.
+- Eligibility never silently drops rows: each row carries eligible / eligibility_reason;
+  manifest records null matrix, excluded-by-reason, universe coverage, as-of summary,
+  config hash, Phase 4A source label fingerprint (lineage), dataset fingerprint, verdict
+  (OK / SUSPECT), and boundary statement. Injectable/frozen clock for generated_at_utc.
+- Purged + embargoed split DEFINITIONS only (train/validation/test index sets). Purge removes
+  training rows whose label window overlaps evaluation; embargo >= max_horizon. NO CV is run.
+- CLI: python scripts/assemble_dataset.py --labels ... --features ... --spec ... --output-json
+  ... --output-md ... [--output-dataset ...]; writes manifest only, never into data/runs/.
+
 Next recommended sprint:
-Pause after Phase 4B Target Quality Report. Do not start Phase 4C implicitly.
-Any Phase 4C work must be explicitly scoped. No alpha, signal, strategy, model training,
+Pause after Phase 4C ML Dataset Assembly. Do not start Phase 4D implicitly.
+Any Phase 4D work must be explicitly scoped. No alpha, signal, strategy, model training,
 optimizer, portfolio construction, trading, order, API, or execution work begins automatically.

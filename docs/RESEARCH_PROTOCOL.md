@@ -70,6 +70,45 @@ The report verdict is `OK` or `SUSPECT`. It never repairs labels, converts nulls
 horizons over a manifest/config disagreement, or expands the backtester. Phase 4B remains labels
 QA only; Phase 4C must be explicitly scoped.
 
+### Phase 4C — ML Dataset Assembly + Data Contract (no training)
+
+Phase 4C assembles a point-in-time-safe `(X, y)` dataset from existing features and Phase 4A
+labels behind a strict adjusted-close / PIT / `available_at` data contract. It answers only
+*"can we assemble X and y without silently leaking future information?"* — never *"can we predict
+returns?"*. **Phase 4C trains no model, runs no cross-validation, and generates no alpha, signal,
+strategy, weight, portfolio, optimizer, backtest, or order.** It is dataset plumbing, not edge
+discovery.
+
+Data contract (fail closed, or mark `SUSPECT` — ambiguous data is never coerced into safe data):
+
+- **Adjusted-close doctrine.** Return labels are back-adjustment invariant when computed
+  consistently. Price-level features built on **back-adjusted** prices are *rejected*; features
+  with **unknown** adjustment provenance are marked `SUSPECT`; only `pit_safe` (as-reported)
+  price levels are accepted. Ambiguous price-level features are never silently trusted.
+- **PIT universe / anti-survivorship.** A row `(symbol, t)` is eligible only if the symbol is in
+  the universe at `t` (`valid_from <= t <= valid_to`, open-ended `valid_to` allowed). Delisted
+  symbols remain until `valid_to`; not-yet-listed symbols are absent before `valid_from`. Missing
+  universe marks `SUSPECT` unless `synthetic_no_universe` is explicit.
+- **As-of join doctrine.** Reference/fundamental values join on real availability time
+  (`available_at <= timestamp`, backward as-of per id). A value published late never appears
+  before its `available_at`; restatements preserve the value known as of `t` (not the latest
+  revision). Missing `available_at` fails closed (or marks `SUSPECT` by config).
+- **Symbol identity doctrine.** `permanent_id` is preferred for lineage; tickers are mapped to a
+  permanent id only within valid date bounds and are never merged just because they match across
+  time. With ticker only, the limitation is documented and the dataset marked `SUSPECT`.
+- **Feature cutoff vs label entry.** `feature_cutoff_time` (the prior bar, lag ≥ 1) is strictly
+  before the row timestamp; feature windows never overlap the forward label window.
+
+Rows are never silently dropped, filled, imputed, or globally scaled. Each row carries `eligible`
+and `eligibility_reason`; the manifest records the null matrix, excluded-by-reason counts,
+universe coverage, as-of summary, config hash, Phase 4A source label fingerprint (lineage), a
+reproducible dataset fingerprint, the `OK`/`SUSPECT` verdict, and a boundary statement.
+
+Purged + embargoed temporal split **definitions** are index sets prepared for a future ML phase:
+training rows whose label window overlaps validation/test are purged, and an embargo of at least
+`max_horizon` bars is removed before each evaluation block. **No cross-validation is executed and
+no model is trained.** Phase 4D must be explicitly scoped.
+
 ---
 
 ## 2. Null-Model Test Battery
