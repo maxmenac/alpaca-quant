@@ -29,6 +29,24 @@ TIER_0_WARNING = "Tier 0 data validates code, not strategy."
 # gating report health.
 CORE_BATTERY_CHECKS = ("random_signal", "shuffled_labels", "future_leak_trap")
 
+# Fail-closed: a report missing any of these cannot be rendered or written. These are the fields
+# that make a report auditable and registry-linked (RESEARCH_PROTOCOL.md §1). Missing OPTIONAL
+# fields degrade to UNKNOWN; missing CRITICAL fields raise loudly.
+CRITICAL_REPORT_FIELDS = (
+    "run_id",
+    "config_hash",
+    "report_health",
+    "headline_metrics",
+    "reproducibility",
+)
+# Within the reproducibility block, the minimum needed to identify/replay a run.
+CRITICAL_REPRODUCIBILITY_FIELDS = ("run_id", "created_at", "config_hash")
+UNKNOWN = "UNKNOWN"
+
+
+class ExperimentReportError(RuntimeError):
+    """Raised when a report cannot be assembled, validated, or written safely (fail-closed)."""
+
 
 @dataclass(frozen=True)
 class ReportPaths:
@@ -138,6 +156,72 @@ def summarize_data_declaration(
     return {"status": status, "missing_fields": missing}
 
 
+def build_reproducibility(
+    *,
+    run_id: str,
+    config_hash: str,
+    seed: int,
+    weight_source: str,
+    created_at: str | None,
+    git_sha: str | None,
+    dataset_id: str | None,
+    feature_set_id: str | None,
+    data_declaration_id: str | None,
+    weights_path: str | None,
+    cost_config_path: str | None,
+) -> dict[str, Any]:
+    """Assemble the reproducibility fingerprint. Optional fields degrade to UNKNOWN, never faked.
+
+    A run is reproducible from git_sha + dataset/data_version + config_hash + seed + the weights
+    input (RESEARCH_PROTOCOL.md §1). Critical identity fields (run_id, created_at, config_hash)
+    are left as-is here and enforced by validate_report_payload — this builder never invents them.
+    """
+
+    def _opt(value: object) -> object:
+        return value if value not in (None, "") else UNKNOWN
+
+    return {
+        "run_id": run_id,
+        "created_at": created_at,
+        "config_hash": config_hash,
+        "seed": seed,
+        "git_sha": _opt(git_sha),
+        "dataset_id": _opt(dataset_id),
+        "data_declaration_id": _opt(data_declaration_id),
+        "feature_set_id": _opt(feature_set_id),
+        "weight_source": _opt(weight_source),
+        "weights_path": _opt(weights_path),
+        "cost_config_path": _opt(cost_config_path),
+    }
+
+
+def validate_report_payload(payload: Mapping[str, Any]) -> None:
+    """Fail-closed report validation. Raises ExperimentReportError if a critical field is missing.
+
+    Critical fields make the report auditable and registry-linked. Never silently substitutes
+    defaults — a report that cannot identify or replay its run must not be produced.
+    """
+    missing = [
+        field
+        for field in CRITICAL_REPORT_FIELDS
+        if payload.get(field) in (None, "", {}, [])
+    ]
+    if missing:
+        raise ExperimentReportError(
+            f"report is missing critical field(s): {', '.join(missing)}"
+        )
+    reproducibility = payload.get("reproducibility", {})
+    repro_missing = [
+        field
+        for field in CRITICAL_REPRODUCIBILITY_FIELDS
+        if reproducibility.get(field) in (None, "", UNKNOWN)
+    ]
+    if repro_missing:
+        raise ExperimentReportError(
+            f"reproducibility block is missing critical field(s): {', '.join(repro_missing)}"
+        )
+
+
 def build_report_payload(
     *,
     run_id: str,
@@ -149,6 +233,11 @@ def build_report_payload(
     backtest_result: BacktestResult,
     battery_report: NullBatteryReport,
     data_declaration: Mapping[str, Any] | None = None,
+    created_at: str | None = None,
+    git_sha: str | None = None,
+    dataset_id: str | None = None,
+    feature_set_id: str | None = None,
+    cost_config_path: str | None = None,
 ) -> dict[str, Any]:
     """Assemble the canonical, JSON-serializable report payload."""
     m = backtest_result.metrics
@@ -157,6 +246,19 @@ def build_report_payload(
     battery_dict = battery_report.as_dict()
     battery_summary = summarize_null_battery(battery_dict)
     report_health = compute_report_health(declaration_summary["status"], battery_summary)
+    reproducibility = build_reproducibility(
+        run_id=run_id,
+        config_hash=config_hash,
+        seed=seed,
+        weight_source=weight_source,
+        created_at=created_at,
+        git_sha=git_sha,
+        dataset_id=dataset_id,
+        feature_set_id=feature_set_id,
+        data_declaration_id=(declaration or {}).get("data_declaration_id"),
+        weights_path=config.get("weights_path"),
+        cost_config_path=cost_config_path,
+    )
     return {
         "run_id": run_id,
         "as_of": as_of,
@@ -165,6 +267,7 @@ def build_report_payload(
         "config_hash": config_hash,
         "weight_source": weight_source,
         "report_health": report_health,
+        "reproducibility": reproducibility,
         "data_declaration": declaration,
         "data_declaration_status": declaration_summary["status"],
         "data_declaration_missing_fields": declaration_summary["missing_fields"],
@@ -275,8 +378,47 @@ def _render_null_battery_verdict(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_reproducibility(payload: dict[str, Any]) -> list[str]:
+    """Render the Reproducibility section (audit + replay fingerprint, near the top)."""
+    repro = payload.get("reproducibility") or {}
+    lines = [
+        "## Reproducibility",
+        "",
+        "| field | value |",
+        "|---|---|",
+        f"| run_id | {repro.get('run_id', UNKNOWN)} |",
+        f"| created_at | {repro.get('created_at', UNKNOWN)} |",
+        f"| git_sha | {repro.get('git_sha', UNKNOWN)} |",
+        f"| dataset_id | {repro.get('dataset_id', UNKNOWN)} |",
+        f"| data_declaration_id | {repro.get('data_declaration_id', UNKNOWN)} |",
+        f"| feature_set_id | {repro.get('feature_set_id', UNKNOWN)} |",
+        f"| config_hash | {repro.get('config_hash', UNKNOWN)} |",
+        f"| seed | {repro.get('seed', UNKNOWN)} |",
+        f"| weight_source | {repro.get('weight_source', UNKNOWN)} |",
+        f"| weights_path | {repro.get('weights_path', UNKNOWN)} |",
+        f"| cost_config_path | {repro.get('cost_config_path', UNKNOWN)} |",
+        "",
+    ]
+    # Replay hint only when the replay-essential fields are all present (no faked command).
+    essentials = (
+        repro.get("git_sha"),
+        repro.get("dataset_id"),
+        repro.get("config_hash"),
+        repro.get("seed"),
+        repro.get("weights_path"),
+    )
+    if all(value not in (None, "", UNKNOWN) for value in essentials):
+        lines += [
+            "_Replay requires: git_sha + dataset/data_version + config_hash + seed + "
+            "weights input._",
+            "",
+        ]
+    return lines
+
+
 def render_markdown(payload: dict[str, Any]) -> str:
-    """Render a human-readable Markdown summary from the report payload."""
+    """Render a human-readable Markdown summary from the report payload (fail-closed)."""
+    validate_report_payload(payload)
     h = payload["headline_metrics"]
     nb = payload["null_battery"]
     lines = [
@@ -288,6 +430,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         f"- config_hash: {payload['config_hash']}",
         f"- weight_source: {payload['weight_source']}",
         "",
+        *_render_reproducibility(payload),
         *_render_data_declaration(payload),
         *_render_null_battery_verdict(payload),
         "## Headline metrics",
@@ -333,7 +476,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 
 def write_report(payload: dict[str, Any], report_dir: str | Path) -> ReportPaths:
-    """Write JSON (canonical) and Markdown (human) reports under report_dir."""
+    """Write JSON (canonical) and Markdown (human) reports under report_dir (fail-closed)."""
+    validate_report_payload(payload)
     out_dir = Path(report_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     run_id = payload["run_id"]

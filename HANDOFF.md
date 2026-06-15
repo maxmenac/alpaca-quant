@@ -162,6 +162,35 @@ Report hardening (Phase 3D-2 — null battery verdict + ENGINE_SUSPECT):
   validation (surface git_sha + data_version + config_hash + seed in the report, and validate
   the report payload against a fixed schema; refuse to render a report missing critical fields)
 
+Report hardening (Phase 3D-3 — reproducibility fingerprint + fail-closed schema):
+- experiment_report.py adds an auditable, registry-linked reproducibility fingerprint and
+  fail-closed validation (still report-layer only; no engine/strategy change):
+  - build_reproducibility(...) -> reproducibility block: run_id, created_at, config_hash, seed,
+    git_sha, dataset_id, data_declaration_id, feature_set_id, weight_source, weights_path,
+    cost_config_path. Optional fields degrade to "UNKNOWN" — never faked.
+  - build_report_payload gained optional created_at/git_sha/dataset_id/feature_set_id/
+    cost_config_path; JSON payload now carries a top-level "reproducibility" block.
+  - Markdown gains "## Reproducibility" (compact table) right under the health banner, plus a
+    replay hint "Replay requires: git_sha + dataset/data_version + config_hash + seed + weights
+    input." shown ONLY when those essentials are all present (no invented/executable command).
+  - validate_report_payload(payload) — FAIL-CLOSED via ExperimentReportError:
+    - CRITICAL_REPORT_FIELDS = run_id, config_hash, report_health, headline_metrics,
+      reproducibility (registry linkage = run_id present)
+    - CRITICAL_REPRODUCIBILITY_FIELDS = run_id, created_at, config_hash
+    - called at the top of BOTH render_markdown and write_report (guards MD and JSON); never
+      substitutes defaults for a missing critical field
+  - missing OPTIONAL fields render as UNKNOWN/null; missing CRITICAL fields raise loudly
+- experiment_runner.run_backtest_experiment threads record.created_at/git_sha/dataset_id/
+  feature_set_id + costs_path into the report (record built before payload)
+- report-only change: no engine/null_models/alpha/strategy/optimizer/order/API touched
+- verification:
+    cd /Users/maxencedelabrousse/Developer/alpaca-quant && source .venv/bin/activate
+    ruff check python && (cd go && go vet ./...) && python -m pytest python/tests -q
+- next recommended step: Phase 3D-4 (OPTIONAL polish — e.g. regime PnL surfacing, plot
+  references, net-of-cost metric labels) OR pause and hold before Phase 4. Phase 4 (first real
+  alphas / weight generation) must be explicitly scoped: it is where signal generation begins
+  and each alpha goes through the null battery + promotion gate. Do not start it implicitly.
+
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
 - data/runs/ ignored, do not commit data artifacts

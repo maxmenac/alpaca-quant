@@ -201,6 +201,11 @@ def run_backtest_experiment(
         backtest_result=backtest_result,
         battery_report=battery_report,
         data_declaration=data_declaration,
+        created_at=record.created_at.isoformat(),
+        git_sha=record.git_sha,
+        dataset_id=record.dataset_id,
+        feature_set_id=record.feature_set_id,
+        cost_config_path=str(costs_path),
     )
     report_paths = write_report(payload, report_dir)
 

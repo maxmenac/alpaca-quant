@@ -5,16 +5,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
+import pytest
 import yaml
 
 from alpaca_quant.backtest.engine.engine import run_backtest
 from alpaca_quant.backtest.null_models import run_null_battery
 from alpaca_quant.research.experiment_report import (
+    ExperimentReportError,
     build_report_payload,
     compute_report_health,
     render_markdown,
     summarize_data_declaration,
     summarize_null_battery,
+    validate_report_payload,
     write_report,
 )
 
@@ -69,12 +72,17 @@ def _payload(tmp_path: Path, data_declaration: dict | None = None) -> dict:
         run_id="exp-test-001",
         as_of="2024-01-21",
         seed=12345,
-        config={"horizon": 1, "seed": 12345},
+        config={"horizon": 1, "seed": 12345, "weights_path": "/tmp/weights.parquet"},
         config_hash="sha256:abc",
         weight_source="caller:test",
         backtest_result=bt,
         battery_report=battery,
         data_declaration=data_declaration,
+        created_at="2024-01-21T00:00:00+00:00",
+        git_sha="abc1234",
+        dataset_id="rds-test",
+        feature_set_id="features-test",
+        cost_config_path="configs/costs.yaml",
     )
 
 
@@ -265,3 +273,71 @@ def test_data_declaration_behavior_still_works_with_battery(tmp_path: Path) -> N
     assert "Tier 0 data validates code, not strategy." in md
     assert "## Data Declaration" in md
     assert "## Null Battery Verdict" in md
+
+
+# --- Phase 3D-3: reproducibility fingerprint + fail-closed schema ---
+
+
+def test_json_includes_reproducibility_block(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    paths = write_report(payload, tmp_path / "reports")
+    parsed = json.loads(paths.json_path.read_text())
+    repro = parsed["reproducibility"]
+    for key in ("run_id", "created_at", "git_sha", "config_hash", "seed", "weights_path"):
+        assert key in repro
+    assert repro["git_sha"] == "abc1234"
+    assert repro["dataset_id"] == "rds-test"
+    assert repro["data_declaration_id"] == _TIER1_DECLARATION["data_declaration_id"]
+
+
+def test_markdown_includes_reproducibility_section_and_replay_hint(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    assert "## Reproducibility" in md
+    assert "git_sha" in md
+    assert "Replay requires: git_sha" in md
+
+
+def test_optional_repro_fields_degrade_to_unknown_without_crashing(tmp_path: Path) -> None:
+    # No git_sha / dataset_id / feature_set_id: optional, must not crash, shown as UNKNOWN,
+    # and the replay hint is withheld (essentials incomplete).
+    frame = _frame()
+    bt = run_backtest(frame)
+    battery = run_null_battery(frame, costs_path=_costs(tmp_path))
+    payload = build_report_payload(
+        run_id="exp-test-002",
+        as_of="2024-01-21",
+        seed=7,
+        config={"horizon": 1},
+        config_hash="sha256:def",
+        weight_source="caller:test",
+        backtest_result=bt,
+        battery_report=battery,
+        created_at="2024-01-21T00:00:00+00:00",
+    )
+    assert payload["reproducibility"]["git_sha"] == "UNKNOWN"
+    assert payload["reproducibility"]["dataset_id"] == "UNKNOWN"
+    md = render_markdown(payload)
+    assert "## Reproducibility" in md
+    assert "Replay requires: git_sha" not in md
+
+
+def test_missing_critical_field_raises_report_error(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    del payload["config_hash"]
+    with pytest.raises(ExperimentReportError, match="config_hash"):
+        render_markdown(payload)
+    with pytest.raises(ExperimentReportError, match="config_hash"):
+        write_report(payload, tmp_path / "reports")
+
+
+def test_missing_critical_reproducibility_field_raises(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    payload["reproducibility"]["created_at"] = None
+    with pytest.raises(ExperimentReportError, match="created_at"):
+        validate_report_payload(payload)
+
+
+def test_validate_passes_on_complete_payload(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    # Should not raise.
+    validate_report_payload(payload)
