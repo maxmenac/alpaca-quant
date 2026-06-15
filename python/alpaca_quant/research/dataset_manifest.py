@@ -40,8 +40,46 @@ ADJUSTED_CLOSE_CAVEAT = (
 )
 
 
+# Declared corporate-action / adjustment statuses that count as unambiguous and safe. Anything
+# else — including partial / best_effort / unknown / an absent declaration — is treated as
+# ambiguous. We carry the DECLARED value through verbatim and never infer or assign one.
+CLEAN_ADJUSTMENT_STATUSES: frozenset[str] = frozenset(
+    {"full", "complete", "none_needed", "not_applicable", "not_required"}
+)
+
+
 class DatasetManifestError(RuntimeError):
     """Raised when a dataset manifest cannot be built or rendered safely."""
+
+
+def read_declared_adjustment_status(
+    declaration: Mapping[str, Any] | None,
+) -> tuple[str | None, str | None]:
+    """Return the verbatim declared (corporate_actions_status, adjustment_status), no inference."""
+    if declaration is None:
+        return None, None
+    if not isinstance(declaration, Mapping):
+        raise DatasetManifestError("data_declaration must be a mapping or None")
+    # The declaration may be wrapped under a top-level 'data_declaration' key (repo convention).
+    inner = declaration.get("data_declaration", declaration)
+    if not isinstance(inner, Mapping):
+        inner = declaration
+    corporate = inner.get("corporate_actions_status")
+    adjustment = inner.get("adjustment_status", inner.get("price_adjustment"))
+    corporate = str(corporate) if corporate is not None else None
+    adjustment = str(adjustment) if adjustment is not None else None
+    return corporate, adjustment
+
+
+def adjustment_declaration_is_ambiguous(
+    corporate_status: str | None,
+    adjustment_status: str | None,
+) -> bool:
+    """An absent or non-clean declared status is ambiguous (conservative; never silently OK)."""
+    statuses = [s for s in (corporate_status, adjustment_status) if s is not None]
+    if not statuses:
+        return True
+    return any(str(s).strip().lower() not in CLEAN_ADJUSTMENT_STATUSES for s in statuses)
 
 
 @dataclass(frozen=True)
@@ -70,6 +108,8 @@ class DatasetManifest:
     split_definitions: list[dict[str, Any]]
     config_hash: str
     warnings: list[dict[str, Any]]
+    declared_corporate_actions_status: str | None = None
+    declared_adjustment_status: str | None = None
     boundary_statement: str = BOUNDARY_STATEMENT
     adjusted_close_caveat: str = ADJUSTED_CLOSE_CAVEAT
     no_model_training: bool = True
@@ -190,6 +230,7 @@ def build_dataset_manifest(
     asof_summary: Mapping[str, Any],
     split_definitions: Sequence[Mapping[str, Any]] | None = None,
     config_payload: Mapping[str, Any] | None = None,
+    data_declaration: Mapping[str, Any] | None = None,
     clock: Any | None = None,
 ) -> DatasetManifest:
     """Build a non-secret dataset manifest with null accounting, lineage, and a SUSPECT verdict."""
@@ -237,7 +278,22 @@ def build_dataset_manifest(
     )
     digest = fingerprint.removeprefix("sha256:")
 
+    # Carry the DECLARED corporate-action / adjustment status through verbatim (no inference).
+    declared_corporate_status, declared_adjustment_status = read_declared_adjustment_status(
+        data_declaration
+    )
+
     warnings: list[dict[str, Any]] = []
+    if adjustment_declaration_is_ambiguous(declared_corporate_status, declared_adjustment_status):
+        warnings.append(
+            _warning(
+                "ambiguous_adjustment_declaration",
+                "Declared corporate-action/adjustment status is absent or not unambiguously "
+                f"clean (corporate_actions_status={declared_corporate_status!r}, "
+                f"adjustment_status={declared_adjustment_status!r}); adjustment safety cannot be "
+                "assumed. Declared value carried through verbatim; nothing inferred.",
+            )
+        )
     if not universe_provided:
         if synthetic_no_universe:
             warnings.append(
@@ -342,6 +398,8 @@ def build_dataset_manifest(
         split_definitions=[dict(item) for item in (split_definitions or [])],
         config_hash=_config_hash(config_payload),
         warnings=warnings,
+        declared_corporate_actions_status=declared_corporate_status,
+        declared_adjustment_status=declared_adjustment_status,
     )
 
 
@@ -402,6 +460,14 @@ def render_dataset_manifest_markdown(manifest: DatasetManifest | Mapping[str, An
             f"| {spec['name']} | {spec['price_level']} | {spec['adjustment']} | "
             f"{spec['availability']} | {spec['lag_bars']} | {spec['safety_class']} |"
         )
+
+    lines += [
+        "",
+        "## Declared Provenance (carried verbatim — never inferred)",
+        "",
+        f"- corporate_actions_status: {data.get('declared_corporate_actions_status') or '—'}",
+        f"- adjustment_status: {data.get('declared_adjustment_status') or '—'}",
+    ]
 
     if data["split_definitions"]:
         lines += ["", "## Split Definitions (index sets only — no CV, no training)", ""]

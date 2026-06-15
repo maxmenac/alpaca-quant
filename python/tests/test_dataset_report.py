@@ -167,6 +167,7 @@ def test_verdict_ok_when_fully_specified() -> None:
         reference=reference,
         reference_value_columns=["eps"],
         config=DatasetConfig(),
+        data_declaration={"corporate_actions_status": "full"},
         clock=_frozen_clock,
     )
     report = _report(res, build_registry([_neutral()]))
@@ -306,3 +307,15 @@ def test_standalone_availability_flag_absent_when_reference_provides_semantics()
     report = _report(res, build_registry([_neutral()]))
     # the as-of reference column IS present -> no standalone "no availability time" warning
     assert not any(w["message"] == _NO_AVAIL_MSG for w in report["warnings"])
+
+
+# --- Change 2: report surfaces ambiguous/absent adjustment declaration ------
+
+
+def test_report_flags_absent_adjustment_declaration_without_price_feature() -> None:
+    # FEATURE is a neutral, non-price-level volume feature; the warning must still fire.
+    res = _dataset()  # no data_declaration passed -> declared status absent -> ambiguous
+    report = _report(res, build_registry([_neutral()]))
+    codes = {w["code"] for w in report["warnings"]}
+    assert "ambiguous_adjustment_declaration" in codes
+    assert report["verdict"] in {VERDICT_SUSPECT, VERDICT_REJECTED}

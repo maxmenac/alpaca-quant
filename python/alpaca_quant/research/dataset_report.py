@@ -13,7 +13,10 @@ from typing import Any
 
 import polars as pl
 
-from alpaca_quant.research.dataset_manifest import DatasetManifest
+from alpaca_quant.research.dataset_manifest import (
+    DatasetManifest,
+    adjustment_declaration_is_ambiguous,
+)
 from alpaca_quant.research.feature_registry import (
     VERDICT_OK,
     VERDICT_REJECTED,
@@ -262,6 +265,23 @@ def build_dataset_inspection_report(
                     f"split definition violates purge/embargo: {exc}",
                 )
             )
+
+    # Surface the manifest's DECLARED corporate-action / adjustment status (carried verbatim).
+    # Ambiguous or absent provenance is SUSPECT regardless of whether a price-level feature exists.
+    if adjustment_declaration_is_ambiguous(
+        manifest_data.get("declared_corporate_actions_status"),
+        manifest_data.get("declared_adjustment_status"),
+    ):
+        reasons.append(
+            _reason(
+                "ambiguous_adjustment_declaration",
+                VERDICT_SUSPECT,
+                "declared corporate-action/adjustment status is absent or not unambiguously "
+                f"clean (corporate_actions_status="
+                f"{manifest_data.get('declared_corporate_actions_status')!r}); "
+                "adjustment safety cannot be assumed.",
+            )
+        )
 
     # Surface ambiguous-adjustment suspects already recorded by the 4C manifest.
     for name in manifest_data.get("suspect_features", []):

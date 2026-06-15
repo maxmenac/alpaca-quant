@@ -173,3 +173,43 @@ def test_manifest_declares_no_training_flags() -> None:
     assert manifest.no_cross_validation is True
     assert manifest.no_alpha is True
     assert manifest.split_definitions_only is True
+
+
+# --- Change 2: declared corporate-action / adjustment status propagation ----
+
+
+def test_partial_adjustment_declaration_carried_and_flagged() -> None:
+    manifest = _assemble(
+        data_declaration={"corporate_actions_status": "partial"}
+    ).manifest
+    # carried verbatim, never inferred
+    assert manifest.declared_corporate_actions_status == "partial"
+    codes = {w["code"] for w in manifest.warnings}
+    assert "ambiguous_adjustment_declaration" in codes
+    assert manifest.verdict == "SUSPECT"
+
+
+def test_absent_adjustment_declaration_is_ambiguous() -> None:
+    manifest = _assemble().manifest  # no declaration passed
+    assert manifest.declared_corporate_actions_status is None
+    codes = {w["code"] for w in manifest.warnings}
+    assert "ambiguous_adjustment_declaration" in codes
+
+
+def test_clean_adjustment_declaration_emits_no_adjustment_warning() -> None:
+    manifest = _assemble(
+        data_declaration={"corporate_actions_status": "full"}
+    ).manifest
+    assert manifest.declared_corporate_actions_status == "full"
+    codes = {w["code"] for w in manifest.warnings}
+    assert "ambiguous_adjustment_declaration" not in codes
+
+
+def test_declared_status_round_trips_through_to_dict() -> None:
+    manifest = _assemble(
+        data_declaration={"data_declaration": {"corporate_actions_status": "best_effort"}}
+    ).manifest
+    payload = manifest.to_dict()
+    assert payload["declared_corporate_actions_status"] == "best_effort"
+    # nested wrapping (repo convention) is read but the value is carried verbatim
+    assert manifest.declared_corporate_actions_status == "best_effort"

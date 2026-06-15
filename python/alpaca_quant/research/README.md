@@ -413,6 +413,12 @@ is **detection/classification only** — no value is synthesized, inferred, norm
   `available_at` column and no reference availability semantics at all, as-of provenance cannot be
   proven, so the report flags it even though no reference table was passed. The absent
   `available_at` is never created or inferred.
+- **`ambiguous_adjustment_declaration` (SUSPECT).** `assemble_ml_dataset(..., data_declaration=…)`
+  carries the **declared** `corporate_actions_status` / `adjustment_status` into the manifest
+  verbatim (`declared_corporate_actions_status`, `declared_adjustment_status`). When that declared
+  status is absent or not unambiguously clean (e.g. `partial` / `best_effort`), both manifest and
+  report flag it — **independent of whether any price-level feature is present**. No adjustment
+  posture is inferred, computed, or re-derived from the bars.
 
 ## What this layer does NOT do
 

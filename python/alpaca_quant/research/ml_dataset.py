@@ -129,6 +129,7 @@ def assemble_ml_dataset(
     id_column: str = SYMBOL_COL,
     config: DatasetConfig | None = None,
     config_payload: Mapping[str, Any] | None = None,
+    data_declaration: Mapping[str, Any] | None = None,
     clock: Any | None = None,
 ) -> AssembledMLDataset:
     """Assemble a PIT-safe ``(features, labels)`` panel with eligibility + lineage.
@@ -251,6 +252,7 @@ def assemble_ml_dataset(
         availability_summary=feature_availability_summary(specs),
         asof_summary=asof_join_summary(frame, asof_columns),
         config_payload=config_payload,
+        data_declaration=data_declaration,
         clock=clock,
     )
     return AssembledMLDataset(
