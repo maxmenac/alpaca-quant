@@ -102,6 +102,36 @@ Target / Label Foundation (Phase 4A):
     cd go && go test ./... && cd ..
 - stop after Phase 4A integration; Phase 4B must be explicitly scoped
 
+Target Quality Report (Phase 4B):
+- `alpaca_quant.research.target_report` audits labelled frames plus Phase 4A metadata:
+  - `build_target_qa_report(...)` returns a JSON-compatible schema-v1 report
+  - `render_target_qa_markdown(...)` produces a compact `Target QA Report`
+  - injectable timezone-aware clock makes `generated_at_utc` deterministic in tests
+- target metadata: target-set id, fingerprint, source, horizons, and declared target columns
+- per-horizon QA: total/valid/null/non-finite counts, null percentage, mean/std/min/max, and
+  p01/p05/p50/p95/p99
+- per-symbol counts and bounded distributions; optional deterministic monthly summaries
+- structured warnings cover missing manifest, excessive nulls, extreme/non-finite returns,
+  missing null ledger, detectable manifest/data mismatch, and upstream adjusted-close/PIT
+  universe/survivorship responsibilities
+- fail-closed:
+  - missing declared target columns raise `TargetReportError`
+  - unsupported manifest versions raise clearly
+  - manifest/config target disagreement raises; no silent horizon inference
+  - nulls and non-finite values are never converted to zero
+- `scripts/report_targets.py` reads local Parquet/CSV labels plus JSON/YAML manifest and writes
+  JSON/Markdown only to explicit output paths
+- report boundary note: labels-only audit; not alpha, signal, strategy, model, recommendation,
+  trading, or execution
+- no backtest expansion, optimizer, portfolio construction, order logic, Alpaca API, network,
+  `.env`, external/live data, or `data/runs` artifacts
+- verification:
+    make lint
+    python -m pytest -q
+    cd go && go test ./... && cd ..
+    git diff --check
+- stop after Phase 4B; do not start Phase 4C
+
 Experiment registry (Sprint 5A):
 - append-only JSONL at data/runs/experiment_registry.jsonl (local, git-ignored)
 - ExperimentRecord (pydantic, extra=forbid): run_id, created_at (UTC), git_sha,
@@ -256,6 +286,6 @@ Data sources — current & future direction:
   and survivorship bias.
 
 Next recommended sprint:
-Pause after Phase 4A Target / Label Foundation. Do not start Phase 4B implicitly.
-Phase 4B begins alpha / signal / weight territory and must be explicitly scoped before any
-implementation. No model training, optimizer, portfolio construction, trading, or order work.
+Pause after Phase 4B Target Quality Report. Do not start Phase 4C implicitly.
+Any Phase 4C work must be explicitly scoped. No alpha, signal, strategy, model training,
+optimizer, portfolio construction, trading, order, API, or execution work begins automatically.

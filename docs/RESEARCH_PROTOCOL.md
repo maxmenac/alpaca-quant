@@ -54,8 +54,21 @@ realized future outcome, not a feature and not an alpha:
 - Labels must never enter the feature factory, signal generation, portfolio construction, live
   trading, or order code.
 
-This foundation creates no strategy, model, optimizer, signal, or weight. Any Phase 4B work must
-be explicitly scoped before it starts.
+This foundation creates no strategy, model, optimizer, signal, or weight.
+
+### Phase 4B — Target Quality Gate
+
+Before labels may be consumed by any later research phase, a local QA report must record:
+
+- target manifest identity, fingerprint, source, horizons, and declared columns
+- valid/null/non-finite counts and distribution statistics per horizon
+- per-symbol coverage and bounded distribution summaries
+- null-reason breakdown plus detectable manifest/data mismatches
+- warnings for excessive nulls, extreme returns, unsupported metadata, and upstream data risks
+
+The report verdict is `OK` or `SUSPECT`. It never repairs labels, converts nulls to zero, invents
+horizons over a manifest/config disagreement, or expands the backtester. Phase 4B remains labels
+QA only; Phase 4C must be explicitly scoped.
 
 ---
 

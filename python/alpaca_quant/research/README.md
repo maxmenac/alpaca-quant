@@ -146,6 +146,63 @@ These labels contain future information by definition. They must never enter fea
 signal generation, or live code. Phase 4A provides no persistence command and writes no CSV,
 Parquet, JSON manifest, or `data/runs` artifact.
 
+## Target QA reports (Phase 4B)
+
+Phase 4B audits Phase 4A labels before any alpha, signal, strategy, model, or weight work:
+
+```python
+from alpaca_quant.research import (
+    TargetReportConfig,
+    build_target_qa_report,
+    render_target_qa_markdown,
+)
+
+report = build_target_qa_report(
+    labelled,
+    manifest=manifest,
+    config=TargetReportConfig(
+        max_null_pct=20.0,
+        extreme_return_threshold=1.0,
+    ),
+)
+markdown = render_target_qa_markdown(report)
+```
+
+The JSON-compatible report includes:
+- schema version and injectable UTC generation time
+- target-set id, source dataset, fingerprint, horizons, and target columns
+- per-horizon counts, null percentage, mean/std/min/max, and p01/p05/p50/p95/p99
+- bounded per-symbol distributions and optional deterministic monthly summaries
+- manifest/data null-reason breakdowns and consistency checks
+- `OK` or `SUSPECT` verdict plus structured warnings
+
+Fail-closed rules:
+- missing declared target columns raise `TargetReportError`
+- unsupported manifest schema versions raise clearly
+- manifest/config target disagreements raise; no horizon is silently inferred over a declaration
+- nulls remain null and non-finite values remain visible as warnings; neither becomes zero
+
+Warnings cover missing manifests, excessive nulls, extreme returns, non-finite values,
+manifest/data mismatches, and missing null-reason ledgers. Every report also states that adjusted
+close handling, point-in-time universe membership, and survivorship bias belong upstream in the
+data layer.
+
+Local CLI:
+
+```bash
+python scripts/report_targets.py \
+    --labels /local/path/targets.parquet \
+    --manifest /local/path/target_manifest.json \
+    --output-json /local/path/target_qa.json \
+    --output-md /local/path/target_qa.md
+```
+
+Parquet and CSV labels are supported; manifest input may be JSON or YAML. Outputs are written only
+to the explicit local paths. No demo outputs or `data/runs` artifacts are part of the repository.
+
+Boundary: Phase 4B is label QA/reporting only. It is not alpha, signal, strategy, model, backtest
+expansion, optimizer, portfolio construction, trading, order logic, or execution.
+
 ## Experiment registry (Sprint 5A)
 
 An append-only JSONL registry records research experiment runs — discipline scaffolding

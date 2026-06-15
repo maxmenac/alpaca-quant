@@ -53,6 +53,8 @@ without an explicit roadmap decision.
 ## Phase 4 — 3 alphas simples
 - [x] **Phase 4A foundation only** : forward-return labels per symbol, tail nulls preserved,
   deterministic fingerprint/manifest, no alpha/signal/weight/model.
+- [x] **Phase 4B QA only** : JSON/Markdown target-quality report, null/distribution audits,
+  manifest consistency warnings, no backtest/alpha/signal/model/weight expansion.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).
