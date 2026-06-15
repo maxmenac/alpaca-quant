@@ -51,6 +51,8 @@ without an explicit roadmap decision.
 - **Sortie :** le bruit donne Sharpe ≈ 0 ; la fuite volontaire fait EXPLOSER le résultat. Sinon le moteur est cassé — on ne continue pas.
 
 ## Phase 4 — 3 alphas simples
+- [x] **Phase 4A foundation only** : forward-return labels per symbol, tail nulls preserved,
+  deterministic fingerprint/manifest, no alpha/signal/weight/model.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).

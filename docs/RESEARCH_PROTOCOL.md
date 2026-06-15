@@ -41,6 +41,24 @@ Règles :
 
 ---
 
+## 1A. Target / Label Foundation
+
+Phase 4A introduces forward-return labels as a separate, offline research artifact. A label is a
+realized future outcome, not a feature and not an alpha:
+
+- `label[t] = price[t+h] / price[t] - 1`, computed independently per symbol.
+- Inputs are stably sorted by `(symbol, timestamp)` before the per-symbol future shift.
+- The final `horizon` rows of each symbol remain null. Unknown futures are never replaced by `0`.
+- Every null label has an auditable reason; manifests record coverage and a deterministic
+  fingerprint.
+- Labels must never enter the feature factory, signal generation, portfolio construction, live
+  trading, or order code.
+
+This foundation creates no strategy, model, optimizer, signal, or weight. Any Phase 4B work must
+be explicitly scoped before it starts.
+
+---
+
 ## 2. Null-Model Test Battery
 
 Avant qu'un alpha soit pris au sérieux, il doit **survivre** à une batterie de tests conçus

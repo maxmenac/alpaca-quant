@@ -1,12 +1,12 @@
 # Alpaca Quant — Current Handoff
 
-Latest clean state:
+Latest clean checkpoint before Phase 4A integration:
 - Branch: main
-- Latest commit: f6755bb feat: add null-model battery for backtest sanity
-- Repo clean and synced with origin/main (before Phase 3C work)
+- Latest commit: 790afe4 feat: polish experiment report readability
+- Repo clean and synced with origin/main
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI)
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> target/label foundation -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI)
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -79,6 +79,28 @@ Research dataset layer (Sprint 4A + 4B):
 - inspect_research_dataset CLI: --bars --features... --symbol... --start --end --as-of
   --write-manifest (writes research_dataset_<id>_manifest.yaml, local/ignored)
 - list_research_datasets CLI: --run <run> | --dir <path>
+
+Target / Label Foundation (Phase 4A):
+- `alpaca_quant.research.targets` adds forward-return labels only:
+  - `build_forward_return_labels(df, horizon, price_col, label_col)`
+  - stable `(symbol, timestamp)` sort and per-symbol future shift
+  - `label[t] = price[t+h] / price[t] - 1`
+  - final `horizon` rows per symbol stay null; nulls are never filled with zero
+  - `target_null_reason` records insufficient future rows and null source/future prices
+- input validation rejects empty/malformed frames, invalid horizons, duplicate keys,
+  non-positive/non-finite prices, existing labels, and strategy/trading columns
+- `summarize_target_labels` provides coverage plus a null-reason breakdown
+- `fingerprint_target_labels` is deterministic across input row ordering
+- `build_target_manifest` records target id, fingerprint, provenance, coverage, null breakdown,
+  and explicit labels-only safety flags
+- no artifact writer: no target CSV/Parquet/JSON or `data/runs` output is created
+- safety boundary: labels only; no alpha, strategy, model, optimizer, signal, weight, portfolio,
+  trading, order, Alpaca API, network, or `.env` logic
+- verification:
+    make lint
+    python -m pytest -q
+    cd go && go test ./... && cd ..
+- stop after Phase 4A integration; Phase 4B must be explicitly scoped
 
 Experiment registry (Sprint 5A):
 - append-only JSONL at data/runs/experiment_registry.jsonl (local, git-ignored)
@@ -234,8 +256,6 @@ Data sources — current & future direction:
   and survivorship bias.
 
 Next recommended sprint:
-Phase 3D (optional) — walk-forward / purged validation split (RESEARCH_PROTOCOL.md §3,
-VALIDATED_OOS), still on caller-provided weights, recorded in the registry.
-Then Phase 4 — first real alphas (this is where weight/signal generation finally begins,
-each alpha going through the null battery + promotion gate). No model training or real alpha
-generation until Phase 4 is explicitly scoped.
+Pause after Phase 4A Target / Label Foundation. Do not start Phase 4B implicitly.
+Phase 4B begins alpha / signal / weight territory and must be explicitly scoped before any
+implementation. No model training, optimizer, portfolio construction, trading, or order work.

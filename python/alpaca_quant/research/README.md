@@ -1,10 +1,11 @@
 # Research
 
-Notebook-friendly local research datasets. Loads and aligns **local** bars + computed
-feature artifacts into a single Polars DataFrame ready for exploration.
+Notebook-friendly local research datasets and audited forward-return labels. The dataset
+loader aligns **local** bars + computed feature artifacts into a label-free Polars DataFrame.
+The separate Phase 4A target module computes future outcomes only after that boundary.
 
 **Local Parquet only. No Alpaca API calls. No `.env` reads. No network. No trading.
-No backtesting. No model training. No signal / label / target generation.**
+No model training. No alpha, strategy, signal, weight, or order generation.**
 
 ## Loading a dataset
 
@@ -105,6 +106,46 @@ directory, no manifests, or a malformed/incomplete manifest. No secrets are prin
 - an empty result after the join
 - any trading/label concept column (`target`, `label`, `signal`, `order`, `weight`, …)
 
+## Forward-return target labels (Phase 4A)
+
+`build_forward_return_labels(...)` creates one audited label column from an already-loaded
+in-memory frame. It does not mutate the research dataset loader or feature factory.
+
+```python
+from alpaca_quant.research import (
+    build_forward_return_labels,
+    build_target_manifest,
+    summarize_target_labels,
+)
+
+labelled = build_forward_return_labels(df, horizon=5, price_col="close")
+summary = summarize_target_labels(
+    labelled,
+    label_col="label_forward_return_5d",
+)
+manifest = build_target_manifest(
+    labelled,
+    horizon=5,
+    source_dataset_id="rds-85eb9a7b",
+)
+```
+
+Contract:
+- labels are simple forward returns: `price[t+h] / price[t] - 1`
+- rows are stably sorted by `(symbol, timestamp)` before calculation
+- future shifts are grouped by symbol, so outcomes never bleed across instruments
+- the final `horizon` rows per symbol remain null; nulls are never filled with `0`
+- `target_null_reason` distinguishes unavailable future rows and null source/future prices
+- invalid horizons, missing columns, duplicate keys, non-positive/non-finite prices, existing
+  labels, and strategy/trading columns are rejected
+- `fingerprint_target_labels(...)` hashes the deterministic target definition and labelled rows
+- `build_target_manifest(...)` records coverage, null breakdown, provenance, fingerprint, and
+  explicit labels-only safety flags
+
+These labels contain future information by definition. They must never enter feature generation,
+signal generation, or live code. Phase 4A provides no persistence command and writes no CSV,
+Parquet, JSON manifest, or `data/runs` artifact.
+
 ## Experiment registry (Sprint 5A)
 
 An append-only JSONL registry records research experiment runs — discipline scaffolding
@@ -188,7 +229,9 @@ result.report_paths  # JSON (canonical) + Markdown (human)
 
 ## What this layer does NOT do
 
-- No prediction, signal, alpha, label, or target generation (weights are caller-provided)
+- No prediction, signal, alpha, strategy, weight, or order generation
+- The only target generation is the separate Phase 4A forward-return label module described
+  above; labels are future outcomes, never model inputs or features
 - No optimizer, no strategy discovery, no model training
 - No order / trade / position / live-execution concepts
 - No Alpaca API calls, no `.env` file reads, no network
