@@ -61,6 +61,14 @@ without an explicit roadmap decision.
   (index sets) only. **No model training, no CV execution, no alpha/signal/strategy/optimizer/
   weight/portfolio/backtest/trading.** Split definitions are prepared for future ML but train
   nothing. Phase 4D must be explicitly scoped.
+- [x] **Phase 4D feature registry + inspection only** : local feature registry (neutral/mechanical
+  metadata only — no feature is computed) with conservative safety classification (future-looking
+  / alpha-like → REJECTED, ambiguous adjustment / not-pit-safe → SUSPECT, never safe from name
+  alone), deterministic `feature_set_id`, and a 4C dataset inspection report (coverage/safety/null
+  tables, lineage, verdict `REJECTED > SUSPECT > OK` listing all reasons, verbatim boundary note).
+  **No model training, no CV, no alpha/signal/strategy/optimizer/weight/portfolio/backtest/trading.**
+  The registry prevents unsafe features from silently entering datasets; inspection audits 4C
+  quality before any future ML. Phase 4E must be explicitly scoped.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).

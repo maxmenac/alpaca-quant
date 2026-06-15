@@ -39,6 +39,13 @@ from alpaca_quant.research.dataset_manifest import (
     fingerprint_dataset,
     render_dataset_manifest_markdown,
 )
+from alpaca_quant.research.dataset_report import (
+    DatasetReportConfig,
+    DatasetReportError,
+    attach_feature_set_id,
+    build_dataset_inspection_report,
+    render_dataset_inspection_markdown,
+)
 from alpaca_quant.research.experiment_registry import (
     ExperimentRecord,
     ExperimentRegistryError,
@@ -54,6 +61,19 @@ from alpaca_quant.research.experiment_runner import (
     compute_config_hash,
     flatten_experiment_metrics,
     run_backtest_experiment,
+)
+from alpaca_quant.research.feature_registry import (
+    FeatureDefinition,
+    FeatureRegistry,
+    FeatureRegistryError,
+    FeatureSetValidation,
+    RegistryValidationConfig,
+    build_registry,
+    compute_feature_set_id,
+    export_feature_definitions,
+    list_definitions,
+    validate_definition,
+    validate_feature_set,
 )
 from alpaca_quant.research.ml_dataset import (
     AssembledMLDataset,
@@ -106,8 +126,24 @@ __all__ = [
     "DatasetConfig",
     "DatasetManifest",
     "DatasetManifestError",
+    "DatasetReportConfig",
+    "DatasetReportError",
+    "FeatureDefinition",
+    "FeatureRegistry",
+    "FeatureRegistryError",
+    "FeatureSetValidation",
     "FeatureSpec",
     "MLDatasetError",
+    "RegistryValidationConfig",
+    "attach_feature_set_id",
+    "build_dataset_inspection_report",
+    "build_registry",
+    "compute_feature_set_id",
+    "export_feature_definitions",
+    "list_definitions",
+    "render_dataset_inspection_markdown",
+    "validate_definition",
+    "validate_feature_set",
     "PitJoinError",
     "SplitDefinitionError",
     "TemporalSplit",

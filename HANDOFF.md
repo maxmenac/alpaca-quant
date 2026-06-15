@@ -6,7 +6,7 @@ Latest clean checkpoint before Phase 4A integration:
 - Repo clean and synced with origin/main
 
 Current pipeline:
-config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> target/label foundation -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI) -> ML dataset assembly + data contract (PIT-safe X/y, no training)
+config loader -> data declaration manifest -> Alpaca bars client -> Parquet writer -> DuckDB query -> mock dry run -> real controlled fetch -> API diagnostics -> run registry -> list-runs CLI -> PIT read layer -> feature factory (PIT-first) -> list-feature-sets CLI -> research dataset loader -> target/label foundation -> list-research-datasets CLI -> experiment registry -> list-experiments CLI -> backtest engine core (PIT, costs, metrics) -> null-model battery -> backtest experiment runner (registry + report + CLI) -> ML dataset assembly + data contract (PIT-safe X/y, no training) -> feature registry + dataset inspection (metadata audit, no computation)
 
 Real controlled fetch (alpaca_controlled_002):
 - AAPL/MSFT
@@ -311,7 +311,31 @@ ML dataset assembly + data contract (Phase 4C):
 - CLI: python scripts/assemble_dataset.py --labels ... --features ... --spec ... --output-json
   ... --output-md ... [--output-dataset ...]; writes manifest only, never into data/runs/.
 
+Feature registry + dataset inspection (Phase 4D):
+- alpaca_quant.research: FeatureDefinition, FeatureRegistry, build_registry, validate_definition,
+  validate_feature_set, compute_feature_set_id, list_definitions, export_feature_definitions,
+  RegistryValidationConfig; build_dataset_inspection_report, render_dataset_inspection_markdown,
+  attach_feature_set_id, DatasetReportConfig
+- modules: research/feature_registry.py, research/dataset_report.py
+- FEATURE METADATA + DATASET INSPECTION ONLY. No feature computation (except synthetic test-only
+  pass-through), no model training, no .fit(), no fit/transform, no CV execution, no global
+  scaling, no fillna/imputation, no alpha/signal/strategy/weight/portfolio/optimizer/backtest/
+  order/trading, no Alpaca API, no network, no .env.
+- Feature registry holds neutral/mechanical metadata only and exists to stop unsafe features from
+  silently entering datasets. Conservative ordered rules: pit_safe defaults False; uses_future_data
+  -> REJECTED; is_alpha_like / alpha-like name / phase-not-allowed -> REJECTED; unknown adjustment
+  -> SUSPECT (or REJECTED per config); price-level without explicit PIT-safe declaration ->
+  SUSPECT/REJECTED; never safe from the name alone. feature_set_id is a deterministic fs-... hash:
+  order/row invariant, version-sensitive, no environment dependency.
+- Dataset inspection report audits a 4C dataset: lineage (4A + dataset fingerprint + feature_set_id),
+  feature coverage + safety tables, null matrix, eligible/ineligible counts + reasons, PIT universe
+  coverage, as-of join coverage, symbol identity coverage, split summaries (definitions only — NO
+  CV), warnings, and a verdict with strict precedence REJECTED > SUSPECT > OK listing ALL reasons.
+  Markdown carries the verbatim boundary note. Injectable/frozen clock for generated_at_utc.
+- CLI: python scripts/inspect_dataset.py --dataset ... --manifest ... [--feature-registry ...]
+  --output-json ... --output-md ...; writes the report only, never into data/runs/.
+
 Next recommended sprint:
-Pause after Phase 4C ML Dataset Assembly. Do not start Phase 4D implicitly.
-Any Phase 4D work must be explicitly scoped. No alpha, signal, strategy, model training,
+Pause after Phase 4D Feature Registry + Dataset Inspection. Do not start Phase 4E implicitly.
+Any Phase 4E work must be explicitly scoped. No alpha, signal, strategy, model training,
 optimizer, portfolio construction, trading, order, API, or execution work begins automatically.

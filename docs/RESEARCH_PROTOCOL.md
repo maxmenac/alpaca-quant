@@ -109,6 +109,44 @@ training rows whose label window overlaps validation/test are purged, and an emb
 `max_horizon` bars is removed before each evaluation block. **No cross-validation is executed and
 no model is trained.** Phase 4D must be explicitly scoped.
 
+### Phase 4D — Feature Registry + Dataset Inspection (no computation)
+
+Phase 4D adds a **local feature registry** (neutral/mechanical feature *metadata* only) and a
+**dataset inspection report** for 4C datasets. It documents and validates feature definitions and
+audits dataset quality; it **does not search for edge**. **Phase 4D computes no feature (except
+synthetic, test-only pass-through), trains no model, runs no cross-validation, and generates no
+alpha, signal, strategy, weight, portfolio, optimizer, backtest, or order.** The registry exists
+to prevent unsafe features from silently entering datasets; the inspection report exists to audit
+4C dataset quality before any future ML work.
+
+Feature definitions carry only neutral metadata (`name`, `family`, `description`, `dtype`,
+`source`, `availability`, `feature_cutoff_rule`, `requires_adjusted_price`, `adjustment_safety`,
+`pit_safe`, `uses_future_data`, `null_policy`, `is_alpha_like`, `allowed_in_phase`, `version`).
+Validation applies conservative, ordered rules and is never coerced into safety:
+
+1. `pit_safe = False` unless explicitly declared.
+2. `uses_future_data = True` → **REJECTED**.
+3. `is_alpha_like = True` (or an alpha-like name, or a phase outside `allowed_in_phase`) →
+   **REJECTED** for Phase 4D.
+4. unknown/ambiguous `adjustment_safety` → **SUSPECT** (or **REJECTED** per config).
+5. price-level feature without an explicit PIT-safe adjustment declaration → **SUSPECT/REJECTED**.
+6. a feature is **never** assumed safe from its name alone.
+
+`feature_set_id` is a deterministic `fs-…` hash over name-sorted, canonically-serialized
+definitions (including each `version`): invariant to feature/row order, sensitive to value/version
+changes, and independent of the environment.
+
+The dataset inspection report verdict follows strict precedence **`REJECTED > SUSPECT > OK`** and
+lists **all** reasons, never just the first. REJECTED conditions: future-looking feature,
+alpha-like feature requested, undeclared price-level violation, invalid split. SUSPECT conditions:
+missing feature metadata, ambiguous adjustment, null ratio above threshold, missing PIT universe,
+missing `permanent_id`/identity, missing/ambiguous `available_at`, dataset column not declared in
+the registry, feature missing from the dataset. The report records lineage (4A label fingerprint,
+dataset fingerprint, `feature_set_id`), coverage/safety tables, null matrix, eligibility, universe
+/ as-of / identity / split summaries, warnings, and carries the verbatim boundary note: *"This
+report inspects dataset and feature metadata only. It is not an alpha, signal, strategy, model,
+trading recommendation, or execution component."* Phase 4E must be explicitly scoped.
+
 ---
 
 ## 2. Null-Model Test Battery

@@ -344,11 +344,72 @@ CLI: `python scripts/assemble_dataset.py --labels ... --features ... --spec ... 
 --output-md ...` writes only the manifest (JSON/Markdown) and, optionally, the dataset to a
 caller-specified path — never into `data/runs/`.
 
+## Feature registry + dataset inspection (Phase 4D)
+
+Phase 4D adds a **local feature registry** (neutral/mechanical feature *metadata* only) and a
+**dataset inspection report** that audits a 4C dataset before any future ML work. **It computes
+no feature, trains no model, runs no CV, and produces no alpha, signal, strategy, weight,
+portfolio, optimizer, backtest, or order.** The registry exists to stop unsafe features from
+silently entering a dataset; the inspection report exists to audit 4C dataset quality. The only
+"features" here are synthetic, test-only, declared pass-through columns — never RSI/MACD/momentum
+or any alpha-ish computation.
+
+```python
+from alpaca_quant.research import (
+    FeatureDefinition, build_registry, validate_definition, validate_feature_set,
+    compute_feature_set_id, build_dataset_inspection_report,
+    render_dataset_inspection_markdown,
+)
+
+definition = FeatureDefinition(
+    name="bar_volume_raw", family="mechanical_volume",
+    description="Raw traded volume, as reported.", dtype="float64",
+    source="caller_provided", pit_safe=True,            # never assumed safe from the name alone
+)
+registry = build_registry([definition])
+validate_definition(definition).verdict                 # OK / SUSPECT / REJECTED + all reasons
+compute_feature_set_id([definition])                    # deterministic; order/row invariant
+report = build_dataset_inspection_report(
+    dataset_frame, manifest=dataset_manifest, registry=registry,
+    requested_features=["bar_volume_raw"], splits=[temporal_split],
+)
+render_dataset_inspection_markdown(report)              # includes the verbatim boundary note
+```
+
+Registry decision rules (conservative, ordered — ambiguity is never coerced into safety):
+
+1. `pit_safe = False` unless explicitly declared.
+2. `uses_future_data = True` → **REJECTED** (look-ahead).
+3. `is_alpha_like = True` (or an alpha-like name, or a phase not in `allowed_in_phase`) →
+   **REJECTED** for Phase 4D.
+4. unknown `adjustment_safety` → **SUSPECT** (or **REJECTED** per config).
+5. price-level feature (`requires_adjusted_price = True`) without an explicit PIT-safe adjustment
+   declaration → **SUSPECT/REJECTED**.
+6. a feature is **never** assumed safe from its name alone.
+
+`feature_set_id` is a deterministic `fs-…` hash over name-sorted, canonically-serialized
+definitions (including each `version`): invariant to feature/row order, sensitive to value or
+version changes, with no environment dependency.
+
+The inspection report's verdict follows strict precedence **`REJECTED > SUSPECT > OK`** and lists
+**all** reasons (future-looking/alpha-like/undeclared-price-level/invalid-split → REJECTED;
+missing metadata, ambiguous adjustment, null ratio over threshold, missing PIT universe / symbol
+identity / `available_at`, undeclared dataset column, feature missing from dataset → SUSPECT). It
+includes lineage (4A + dataset fingerprint + `feature_set_id`), coverage/safety tables, null
+matrix, universe/as-of/identity/split summaries, warnings, and the verbatim note: *"This report
+inspects dataset and feature metadata only. It is not an alpha, signal, strategy, model, trading
+recommendation, or execution component."*
+
+CLI: `python scripts/inspect_dataset.py --dataset ... --manifest ... --feature-registry ...
+--output-json ... --output-md ...` writes only the report (JSON/Markdown) to caller paths — never
+into `data/runs/`.
+
 ## What this layer does NOT do
 
 - No prediction, signal, alpha, strategy, weight, or order generation
 - No model training, no `.fit()`, no fit/transform, no cross-validation execution, no global
-  scaling — Phase 4C assembles datasets and split *definitions* only
+  scaling — Phase 4C assembles datasets and split *definitions* only, and Phase 4D inspects
+  feature/dataset *metadata* only (no feature is computed except synthetic test-only pass-through)
 - The only target generation is the separate Phase 4A forward-return label module described
   above; labels are future outcomes, never model inputs or features
 - No optimizer, no strategy discovery, no model training
