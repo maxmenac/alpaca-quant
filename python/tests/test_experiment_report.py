@@ -12,10 +12,22 @@ from alpaca_quant.backtest.null_models import run_null_battery
 from alpaca_quant.research.experiment_report import (
     build_report_payload,
     render_markdown,
+    summarize_data_declaration,
     write_report,
 )
 
 _FACTORS = [1.03, 0.98, 1.05, 0.97, 1.04, 0.96]
+
+_TIER1_DECLARATION = {
+    "data_declaration_id": "dq-tier1-us-largecap-2026-06-14",
+    "tier": 1,
+    "universe_source": "alpaca-us-active-2026",
+    "universe_id": "us-largecap-v001",
+    "survivorship_bias_status": "partial",
+    "corporate_actions_status": "partial",
+    "pit_status": "best_effort",
+    "data_feed": "sip-historical",
+}
 
 
 def _frame(n: int = 20) -> pl.DataFrame:
@@ -47,7 +59,7 @@ def _costs(tmp_path: Path) -> str:
     return str(path)
 
 
-def _payload(tmp_path: Path) -> dict:
+def _payload(tmp_path: Path, data_declaration: dict | None = None) -> dict:
     frame = _frame()
     bt = run_backtest(frame)
     battery = run_null_battery(frame, costs_path=_costs(tmp_path))
@@ -60,6 +72,7 @@ def _payload(tmp_path: Path) -> dict:
         weight_source="caller:test",
         backtest_result=bt,
         battery_report=battery,
+        data_declaration=data_declaration,
     )
 
 
@@ -107,3 +120,67 @@ def test_no_secret_names_in_reports(tmp_path: Path) -> None:
     combined = paths.json_path.read_text() + paths.markdown_path.read_text()
     assert "ALPACA_API_KEY_ID" not in combined
     assert "ALPACA_API_SECRET_KEY" not in combined
+
+
+# --- Phase 3D-1: data declaration + tier banner ---
+
+
+def test_markdown_includes_data_declaration_section(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    assert "## Data Declaration" in md
+    # The four critical data-honesty fields are surfaced.
+    assert "survivorship_bias_status" in md
+    assert "corporate_actions_status" in md
+    assert "pit_status" in md
+    assert "best_effort" in md
+    # A complete Tier 1 declaration carries no SUSPECT/Tier-0 banner.
+    assert "SUSPECT" not in md
+    assert "validates code, not strategy" not in md
+
+
+def test_json_report_includes_data_declaration_block(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    paths = write_report(payload, tmp_path / "reports")
+    parsed = json.loads(paths.json_path.read_text())
+    assert parsed["data_declaration"] is not None
+    assert parsed["data_declaration"]["tier"] == 1
+    assert parsed["data_declaration_status"] == "COMPLETE"
+    assert parsed["data_declaration_missing_fields"] == []
+
+
+def test_tier0_warning_banner_present(tmp_path: Path) -> None:
+    tier0 = {**_TIER1_DECLARATION, "tier": 0}
+    md = render_markdown(_payload(tmp_path, data_declaration=tier0))
+    assert "Tier 0 data validates code, not strategy." in md
+
+
+def test_tier1_has_no_tier0_warning(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    assert "Tier 0 data validates code, not strategy." not in md
+
+
+def test_missing_critical_fields_not_silently_ignored(tmp_path: Path) -> None:
+    incomplete = {k: v for k, v in _TIER1_DECLARATION.items() if k != "pit_status"}
+    payload = _payload(tmp_path, data_declaration=incomplete)
+    assert payload["data_declaration_status"] == "INCOMPLETE"
+    assert "pit_status" in payload["data_declaration_missing_fields"]
+    md = render_markdown(payload)
+    assert "INCOMPLETE" in md
+    assert "SUSPECT" in md
+
+
+def test_absent_declaration_marked_suspect(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=None)
+    assert payload["data_declaration_status"] == "MISSING"
+    md = render_markdown(payload)
+    assert "DATA DECLARATION MISSING" in md
+    assert "SUSPECT" in md
+
+
+def test_summarize_data_declaration_classifies() -> None:
+    assert summarize_data_declaration(None)["status"] == "MISSING"
+    assert summarize_data_declaration(_TIER1_DECLARATION)["status"] == "COMPLETE"
+    blank = {**_TIER1_DECLARATION, "tier": None}
+    summary = summarize_data_declaration(blank)
+    assert summary["status"] == "INCOMPLETE"
+    assert "tier" in summary["missing_fields"]

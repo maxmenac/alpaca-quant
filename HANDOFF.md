@@ -110,6 +110,29 @@ Backtest experiment runner (Phase 3C):
 - CLI: scripts/run_experiment.py (--bars --weights --as-of --weight-source required)
 - reports + registry land in git-ignored data/runs/, never committed
 
+Report hardening (Phase 3D-1 — data declaration + tier banner):
+- experiment_report.py now surfaces data honesty at the TOP of every report:
+  - build_report_payload(..., data_declaration=<mapping|None>) optional, defaults None
+  - JSON payload gains: data_declaration (block or null), data_declaration_status
+    (COMPLETE | INCOMPLETE | MISSING), data_declaration_missing_fields (list)
+  - Markdown gains a "## Data Declaration" section right under the header, before metrics,
+    showing tier, survivorship_bias_status, corporate_actions_status, pit_status,
+    data_declaration_id, universe_source, data_feed
+  - CRITICAL_DECLARATION_FIELDS = tier, survivorship_bias_status, corporate_actions_status,
+    pit_status (DATA_QUALITY.md §2). Missing/blank => report marked SUSPECT (never silently
+    clean): absent declaration => "DATA DECLARATION MISSING ... SUSPECT"; partial => INCOMPLETE
+  - tier == 0 => visible banner "Tier 0 data validates code, not strategy."
+  - summarize_data_declaration(declaration) classifies status + missing fields
+- experiment_runner.run_backtest_experiment(..., data_declaration=<mapping|None>) threads the
+  declaration through to the report (no engine/alpha/strategy change)
+- report-only change: no trading/order/model/optimizer/API/backtest-logic touched
+- verification:
+    cd /Users/maxencedelabrousse/Developer/alpaca-quant && source .venv/bin/activate
+    ruff check python && (cd go && go vet ./...) && python -m pytest python/tests -q
+- next recommended step: Phase 3D-2 — Null Battery verdict + ENGINE_SUSPECT (surface the
+  null-battery PASS/FAIL verdicts at the top of the report; if the future-leak trap does NOT
+  explode, flag the report ENGINE_SUSPECT — the trap tests the backtester itself)
+
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
 - data/runs/ ignored, do not commit data artifacts

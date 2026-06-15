@@ -9,10 +9,11 @@ optimizer, no model training, no live trading, no order logic.
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 
@@ -120,6 +121,7 @@ def run_backtest_experiment(
     report_dir: str | Path = DEFAULT_REPORT_DIR,
     feature_set_id: str | None = None,
     dataset_id: str | None = None,
+    data_declaration: Mapping[str, Any] | None = None,
     decided_by: str | None = None,
     notes: str | None = None,
     repo_dir: str | Path | None = None,
@@ -198,6 +200,7 @@ def run_backtest_experiment(
         weight_source=weight_source,
         backtest_result=backtest_result,
         battery_report=battery_report,
+        data_declaration=data_declaration,
     )
     report_paths = write_report(payload, report_dir)
 
