@@ -24,11 +24,99 @@ CRITICAL_DECLARATION_FIELDS = (
 )
 TIER_0_WARNING = "Tier 0 data validates code, not strategy."
 
+# Engine-sanity checks (RESEARCH_PROTOCOL.md §2): these decide whether the BACKTESTER is
+# trustworthy. cost_stress / shifted are informational robustness diagnostics, displayed but not
+# gating report health.
+CORE_BATTERY_CHECKS = ("random_signal", "shuffled_labels", "future_leak_trap")
+
 
 @dataclass(frozen=True)
 class ReportPaths:
     json_path: Path
     markdown_path: Path
+
+
+def summarize_null_battery(null_battery: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Summarize the null-model battery into PASS/FAIL/UNKNOWN verdicts (report layer only).
+
+    Pure summarization of EXISTING diagnostics — no engine change, no strategy logic. The
+    future-leak trap is special: it tests the backtester itself. If it did not explode, the
+    engine (or the trap) is suspect and `engine_suspect` is True.
+    """
+    unknown_verdicts = dict.fromkeys(
+        (
+            "random_signal",
+            "shifted_signal",
+            "future_leak_trap",
+            "shuffled_labels",
+            "cost_stress_2x",
+            "cost_stress_5x",
+        ),
+        "UNKNOWN",
+    )
+    if not null_battery:
+        return {
+            "available": False,
+            "verdicts": unknown_verdicts,
+            "future_leak_exploded": None,
+            "engine_suspect": False,
+        }
+
+    def _flag_verdict(flag: object) -> str:
+        return "PASS" if bool(flag) else "FAIL"
+
+    baseline_sharpe = null_battery.get("baseline", {}).get("sharpe")
+    shifted_sharpe = null_battery.get("shifted_weights", {}).get("sharpe")
+
+    def _shifted_verdict() -> str:
+        # Shifting weights into the past must not IMPROVE the edge (RESEARCH_PROTOCOL §2).
+        if baseline_sharpe is None or shifted_sharpe is None:
+            return "UNKNOWN"
+        return "PASS" if shifted_sharpe <= baseline_sharpe else "FAIL"
+
+    def _cost_verdict(variant: str) -> str:
+        total_return = null_battery.get(variant, {}).get("total_return")
+        if total_return is None:
+            return "UNKNOWN"
+        return "PASS" if total_return > 0 else "FAIL"
+
+    leak_exploded = bool(null_battery.get("future_leak_detected", False))
+    verdicts = {
+        "random_signal": _flag_verdict(null_battery.get("random_near_zero", False)),
+        "shifted_signal": _shifted_verdict(),
+        "future_leak_trap": _flag_verdict(leak_exploded),
+        "shuffled_labels": _flag_verdict(null_battery.get("shuffled_near_zero", False)),
+        "cost_stress_2x": _cost_verdict("cost_stress_2x"),
+        "cost_stress_5x": _cost_verdict("cost_stress_5x"),
+    }
+    return {
+        "available": True,
+        "verdicts": verdicts,
+        "future_leak_exploded": leak_exploded,
+        "engine_suspect": not leak_exploded,
+    }
+
+
+def compute_report_health(
+    declaration_status: str,
+    battery_summary: Mapping[str, Any],
+) -> str:
+    """Resolve overall report health: OK | SUSPECT | ENGINE_SUSPECT.
+
+    Precedence: a suspect engine invalidates everything, so ENGINE_SUSPECT wins. Otherwise an
+    incomplete declaration or an incomplete/failing core battery is SUSPECT. Only a complete
+    declaration plus a passing core battery yields OK.
+    """
+    if battery_summary.get("available") and battery_summary.get("engine_suspect"):
+        return "ENGINE_SUSPECT"
+    if not battery_summary.get("available"):
+        return "SUSPECT"
+    verdicts = battery_summary.get("verdicts", {})
+    if any(verdicts.get(check) != "PASS" for check in CORE_BATTERY_CHECKS):
+        return "SUSPECT"
+    if declaration_status != "COMPLETE":
+        return "SUSPECT"
+    return "OK"
 
 
 def summarize_data_declaration(
@@ -66,6 +154,9 @@ def build_report_payload(
     m = backtest_result.metrics
     declaration = dict(data_declaration) if data_declaration is not None else None
     declaration_summary = summarize_data_declaration(declaration)
+    battery_dict = battery_report.as_dict()
+    battery_summary = summarize_null_battery(battery_dict)
+    report_health = compute_report_health(declaration_summary["status"], battery_summary)
     return {
         "run_id": run_id,
         "as_of": as_of,
@@ -73,9 +164,11 @@ def build_report_payload(
         "config": config,
         "config_hash": config_hash,
         "weight_source": weight_source,
+        "report_health": report_health,
         "data_declaration": declaration,
         "data_declaration_status": declaration_summary["status"],
         "data_declaration_missing_fields": declaration_summary["missing_fields"],
+        "null_battery_summary": battery_summary,
         "headline_metrics": {
             "sharpe": m.sharpe,
             "sortino": m.sortino,
@@ -85,7 +178,7 @@ def build_report_payload(
             "cagr": m.cagr,
             "n_periods": m.n_periods,
         },
-        "null_battery": battery_report.as_dict(),
+        "null_battery": battery_dict,
         "equity_curve": backtest_result.periods.select(["timestamp", "equity"]).to_dicts(),
         "no_trading": True,
         "no_model_training": True,
@@ -134,6 +227,54 @@ def _render_data_declaration(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_report_health(payload: dict[str, Any]) -> list[str]:
+    """Render the top-of-report health banner (shown before everything else)."""
+    health = payload.get("report_health", "SUSPECT")
+    if health == "OK":
+        return ["> ✅ **Report health: OK**", ""]
+    if health == "ENGINE_SUSPECT":
+        return [
+            "> 🛑 **Report health: ENGINE_SUSPECT — the future-leak trap did NOT explode. The "
+            "backtester itself is suspect; do not trust any result until the engine is fixed.**",
+            "",
+        ]
+    return [
+        "> ⚠️ **Report health: SUSPECT — data declaration and/or null battery is "
+        "missing or incomplete. Treat results with caution.**",
+        "",
+    ]
+
+
+def _render_null_battery_verdict(payload: dict[str, Any]) -> list[str]:
+    """Render the Null Battery Verdict section (engine sanity, near the top)."""
+    summary = payload.get("null_battery_summary") or {}
+    verdicts = summary.get("verdicts", {})
+    lines = ["## Null Battery Verdict", ""]
+    if not summary.get("available", False):
+        lines += [
+            "> ⚠️ **Null-battery diagnostics unavailable — verdict UNKNOWN. Treat as SUSPECT.**",
+            "",
+        ]
+        return lines
+    if summary.get("engine_suspect", False):
+        lines += [
+            "> 🛑 **ENGINE_SUSPECT — the future-leak trap did not explode as expected.**",
+            "",
+        ]
+    lines += [
+        "| check | verdict |",
+        "|---|---|",
+        f"| random signal | {verdicts.get('random_signal', 'UNKNOWN')} |",
+        f"| shifted signal | {verdicts.get('shifted_signal', 'UNKNOWN')} |",
+        f"| future-leak trap | {verdicts.get('future_leak_trap', 'UNKNOWN')} |",
+        f"| shuffled labels | {verdicts.get('shuffled_labels', 'UNKNOWN')} |",
+        f"| cost stress ×2 | {verdicts.get('cost_stress_2x', 'UNKNOWN')} |",
+        f"| cost stress ×5 | {verdicts.get('cost_stress_5x', 'UNKNOWN')} |",
+        "",
+    ]
+    return lines
+
+
 def render_markdown(payload: dict[str, Any]) -> str:
     """Render a human-readable Markdown summary from the report payload."""
     h = payload["headline_metrics"]
@@ -141,12 +282,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
     lines = [
         f"# Backtest experiment {payload['run_id']}",
         "",
+        *_render_report_health(payload),
         f"- as_of: {payload['as_of']}",
         f"- seed: {payload['seed']}",
         f"- config_hash: {payload['config_hash']}",
         f"- weight_source: {payload['weight_source']}",
         "",
         *_render_data_declaration(payload),
+        *_render_null_battery_verdict(payload),
         "## Headline metrics",
         "",
         "| metric | value |",

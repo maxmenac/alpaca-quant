@@ -11,8 +11,10 @@ from alpaca_quant.backtest.engine.engine import run_backtest
 from alpaca_quant.backtest.null_models import run_null_battery
 from alpaca_quant.research.experiment_report import (
     build_report_payload,
+    compute_report_health,
     render_markdown,
     summarize_data_declaration,
+    summarize_null_battery,
     write_report,
 )
 
@@ -133,8 +135,10 @@ def test_markdown_includes_data_declaration_section(tmp_path: Path) -> None:
     assert "corporate_actions_status" in md
     assert "pit_status" in md
     assert "best_effort" in md
-    # A complete Tier 1 declaration carries no SUSPECT/Tier-0 banner.
-    assert "SUSPECT" not in md
+    # A complete Tier 1 declaration carries no data-declaration warning banner.
+    # (Report-health SUSPECT from the null battery is a separate 3D-2 banner.)
+    assert "DATA DECLARATION MISSING" not in md
+    assert "DATA DECLARATION INCOMPLETE" not in md
     assert "validates code, not strategy" not in md
 
 
@@ -184,3 +188,80 @@ def test_summarize_data_declaration_classifies() -> None:
     summary = summarize_data_declaration(blank)
     assert summary["status"] == "INCOMPLETE"
     assert "tier" in summary["missing_fields"]
+
+
+# --- Phase 3D-2: null battery verdict + ENGINE_SUSPECT ---
+
+
+def _battery_dict(*, leak_detected: bool = True) -> dict:
+    """Minimal null-battery dict shaped like NullBatteryReport.as_dict()."""
+    return {
+        "baseline": {"sharpe": 1.0, "total_return": 0.2},
+        "shifted_weights": {"sharpe": 0.1, "total_return": 0.01},
+        "cost_stress_2x": {"sharpe": 0.5, "total_return": 0.1},
+        "cost_stress_5x": {"sharpe": 0.2, "total_return": 0.05},
+        "future_leak_detected": leak_detected,
+        "random_near_zero": True,
+        "shuffled_near_zero": True,
+    }
+
+
+def test_markdown_includes_null_battery_verdict(tmp_path: Path) -> None:
+    md = render_markdown(_payload(tmp_path, data_declaration=_TIER1_DECLARATION))
+    assert "## Null Battery Verdict" in md
+    assert "future-leak trap" in md
+    assert "cost stress ×2" in md
+    assert "Report health:" in md
+
+
+def test_json_includes_null_battery_summary(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    paths = write_report(payload, tmp_path / "reports")
+    parsed = json.loads(paths.json_path.read_text())
+    assert "null_battery_summary" in parsed
+    assert "verdicts" in parsed["null_battery_summary"]
+    assert "report_health" in parsed
+    # The synthetic trend frame leaks loudly: the trap explodes -> trap PASS.
+    assert parsed["null_battery_summary"]["verdicts"]["future_leak_trap"] == "PASS"
+
+
+def test_future_leak_failure_is_engine_suspect() -> None:
+    summary = summarize_null_battery(_battery_dict(leak_detected=False))
+    assert summary["engine_suspect"] is True
+    assert summary["verdicts"]["future_leak_trap"] == "FAIL"
+    # Engine suspicion wins over an otherwise-complete declaration.
+    assert compute_report_health("COMPLETE", summary) == "ENGINE_SUSPECT"
+
+
+def test_engine_suspect_renders_at_top(tmp_path: Path) -> None:
+    payload = _payload(tmp_path, data_declaration=_TIER1_DECLARATION)
+    payload["report_health"] = "ENGINE_SUSPECT"
+    payload["null_battery_summary"] = summarize_null_battery(_battery_dict(leak_detected=False))
+    md = render_markdown(payload)
+    # The ENGINE_SUSPECT banner appears before the headline metrics.
+    assert "ENGINE_SUSPECT" in md
+    assert md.index("ENGINE_SUSPECT") < md.index("## Headline metrics")
+
+
+def test_missing_null_battery_is_not_clean_ok() -> None:
+    summary = summarize_null_battery(None)
+    assert summary["available"] is False
+    assert all(v == "UNKNOWN" for v in summary["verdicts"].values())
+    # Even with a complete declaration, no battery -> SUSPECT, never OK.
+    assert compute_report_health("COMPLETE", summary) == "SUSPECT"
+
+
+def test_health_ok_only_when_declaration_and_core_battery_pass() -> None:
+    good = summarize_null_battery(_battery_dict(leak_detected=True))
+    assert compute_report_health("COMPLETE", good) == "OK"
+    # Incomplete declaration drags health to SUSPECT even if the battery passes.
+    assert compute_report_health("INCOMPLETE", good) == "SUSPECT"
+
+
+def test_data_declaration_behavior_still_works_with_battery(tmp_path: Path) -> None:
+    # 3D-1 behavior intact alongside 3D-2: Tier 0 warning still present.
+    tier0 = {**_TIER1_DECLARATION, "tier": 0}
+    md = render_markdown(_payload(tmp_path, data_declaration=tier0))
+    assert "Tier 0 data validates code, not strategy." in md
+    assert "## Data Declaration" in md
+    assert "## Null Battery Verdict" in md

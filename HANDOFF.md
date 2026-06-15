@@ -133,6 +133,35 @@ Report hardening (Phase 3D-1 — data declaration + tier banner):
   null-battery PASS/FAIL verdicts at the top of the report; if the future-leak trap does NOT
   explode, flag the report ENGINE_SUSPECT — the trap tests the backtester itself)
 
+Report hardening (Phase 3D-2 — null battery verdict + ENGINE_SUSPECT):
+- experiment_report.py summarizes the EXISTING null battery at the report layer (no engine
+  change, no strategy logic):
+  - summarize_null_battery(null_battery) -> {available, verdicts, future_leak_exploded,
+    engine_suspect}. Verdicts (PASS/FAIL/UNKNOWN): random_signal, shifted_signal,
+    future_leak_trap, shuffled_labels, cost_stress_2x, cost_stress_5x
+  - mapping from existing diagnostics: random_signal<-random_near_zero,
+    shuffled_labels<-shuffled_near_zero, future_leak_trap<-future_leak_detected;
+    shifted_signal PASS if shifted.sharpe <= baseline.sharpe (must not improve);
+    cost_stress_{2x,5x} PASS if that variant's total_return > 0
+  - future-leak trap is special: engine_suspect = not future_leak_detected (the trap tests the
+    backtester itself)
+  - compute_report_health(declaration_status, battery_summary) -> OK | SUSPECT | ENGINE_SUSPECT
+    - ENGINE_SUSPECT wins (broken engine invalidates everything)
+    - SUSPECT if battery unavailable, any CORE check (random/shuffled/future_leak) not PASS, or
+      declaration not COMPLETE
+    - OK only if declaration COMPLETE and core battery passes
+    - CORE_BATTERY_CHECKS gate health; cost_stress/shifted are displayed-but-informational
+  - JSON payload gains: report_health, null_battery_summary
+  - Markdown gains: top-of-report health banner (✅ OK / ⚠️ SUSPECT / 🛑 ENGINE_SUSPECT) right
+    under the title, and a "## Null Battery Verdict" section after Data Declaration
+- report-only change: no engine/null_models/alpha/strategy/optimizer/order/API touched
+- verification:
+    cd /Users/maxencedelabrousse/Developer/alpaca-quant && source .venv/bin/activate
+    ruff check python && (cd go && go vet ./...) && python -m pytest python/tests -q
+- next recommended step: Phase 3D-3 — reproducibility fingerprint + fail-closed report schema
+  validation (surface git_sha + data_version + config_hash + seed in the report, and validate
+  the report payload against a fixed schema; refuse to render a report missing critical fields)
+
 Safety:
 - .env ignored, contains Alpaca keys, never print/read secrets
 - data/runs/ ignored, do not commit data artifacts
