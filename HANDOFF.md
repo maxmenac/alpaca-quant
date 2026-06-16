@@ -350,7 +350,27 @@ Inspection hardening (Phase 4D-1) — closes 3 audit blind spots found by 4E-0; 
   preserved; warnings emitted in stable sorted order. The real fixes (re-stamp tz, backfill
   available_at/adjustment provenance) belong to a future ingestion sprint, not 4D-1.
 
+Local synthetic provenance ingestion (Phase 4F-0) — build data, not auditor:
+- new files: research/synthetic_provenance.py (fixtures), tests/test_synthetic_provenance_clean.py,
+  tests/test_synthetic_provenance_dirty.py. NO auditor module changed (4C/4D/4D-1 untouched).
+- builds local, deterministic, in-memory provenance: as-reported bars (per-row available_at >=
+  timestamp + permanent_id), PIT universe (valid_from/valid_to incl. a delisted symbol whose
+  valid_to ends mid-dataset), date-bounded identity with a mid-window ticker change under one
+  permanent_id, explicit corporate-action records (split + dividend) that also feed the as-of
+  reference join, and a tz-aligned neutral feature (bar_volume_raw) declared in the registry.
+- Clean path: strict assembly → 6 eligible rows; 4C manifest verdict OK AND 4D inspection verdict
+  OK; all four 4D-1 warnings absent. Declared corporate_actions_status='full', honest and
+  consistent with the supplied records (adjustment auditable from records, not asserted).
+- Dirty path (one named reason each): delisted → not_in_universe/ineligible after valid_to;
+  no identity → missing_symbol_identity; no reference/available_at → missing_available_at_semantics;
+  corporate_actions_status='partial' → ambiguous_adjustment_declaration; foreign feature tz →
+  feature_timezone_mismatch; too-short window → 0-eligible/tail-null. REJECTED > SUSPECT > OK held.
+- determinism: frozen clock in tests, stable sorted warning set, reproducible fingerprints.
+- Limitation: an honest OK on synthetic data validates the CONTRACT PATH only; it does NOT validate
+  real prices or real provenance. Real-data ingestion (network fetch, vendor corporate actions,
+  real PIT universe, tz re-stamping) still owes that and remains a future explicitly-scoped sprint.
+
 Next recommended sprint:
-Pause after Phase 4D-1 inspection hardening. Do not start Phase 4E / ingestion implicitly.
-Any Phase 4E work must be explicitly scoped. No alpha, signal, strategy, model training,
-optimizer, portfolio construction, trading, order, API, or execution work begins automatically.
+Pause after Phase 4F-0. Do not start the Experiment Registry, Phase 4E proper, real-data fetch, or
+ML training implicitly. Any such work must be explicitly scoped. No alpha, signal, strategy, model
+training, optimizer, portfolio construction, trading, order, API, or execution begins automatically.

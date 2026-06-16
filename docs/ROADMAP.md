@@ -75,6 +75,14 @@ without an explicit roadmap decision.
   flagged when absent/partial), `feature_timezone_mismatch` (feature tz ≠ bar tz → join refused, no
   conversion). All SUSPECT-class; detection/classification only — nothing synthesized, inferred, or
   converted. The actual fixes belong to a future ingestion sprint.
+- [x] **Phase 4F-0 local synthetic provenance ingestion (build data, not auditor)** : constructs
+  local, deterministic provenance fixtures — as-reported bars (per-row `available_at` + `permanent_id`),
+  PIT universe (`valid_from`/`valid_to` incl. a delisted symbol), date-bounded identity with a
+  mid-window ticker change, explicit corporate-action records (split + dividend), tz-aligned neutral
+  feature — and feeds them to the **unchanged** 4C/4D/4D-1 chain. Proves the auditor reaches an honest
+  **OK** on a clean slice AND still refuses a dirty slice for one named reason each. Adjustment is
+  auditable from records, not asserted. Still local-only: no network, alpha, signal, model, training,
+  or trading. An honest OK validates the contract path only — not real prices/provenance.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).

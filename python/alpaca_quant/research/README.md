@@ -433,6 +433,30 @@ report is reproducible across row/column orderings. They **flag, never mutate**:
 adjustment posture, or timezone is synthesized, inferred, or converted — those fixes live in a
 future scoped ingestion sprint.
 
+## Local synthetic provenance fixtures (Phase 4F-0)
+
+`synthetic_provenance.py` constructs small, fully-local, deterministic provenance fixtures and
+feeds them to the **existing** 4C/4D/4D-1 chain — it modifies no auditor logic (build data, not
+auditor). It proves both halves of the contract:
+
+- **Clean path → honest OK.** As-reported bars (with per-row `available_at >= timestamp` and a
+  `permanent_id`), a PIT universe with `valid_from`/`valid_to` (including a delisted symbol), a
+  date-bounded identity carrying a mid-window ticker change under one `permanent_id`, explicit
+  corporate-action records (split + dividend) that also feed the as-of reference join, and a
+  tz-aligned neutral feature (`bar_volume_raw`). Strict-mode assembly yields a non-empty eligible
+  band and both the 4C manifest and 4D inspection return **OK** with all four 4D-1 warnings absent.
+- **Dirty path → still refused for one named reason each.** delisted → `not_in_universe` after
+  `valid_to`; withheld identity → `missing_symbol_identity`; no reference/available_at →
+  `missing_available_at_semantics`; `corporate_actions_status=partial` →
+  `ambiguous_adjustment_declaration`; foreign feature timezone → `feature_timezone_mismatch`;
+  too-short window → 0-eligible / tail-null.
+
+Adjustment safety is **auditable from records** (split/dividend rows with effective dates), never
+asserted by a bare flag. An honest OK on synthetic data validates the *contract path* only — it
+does not validate real prices or real provenance; real-data ingestion is a future scoped sprint.
+The `convert_time_zone` call in the tz-mismatch fixture is **fixture authoring**, not an auditor
+path — the inspection layer still converts nothing.
+
 ## What this layer does NOT do
 
 - No prediction, signal, alpha, strategy, weight, or order generation

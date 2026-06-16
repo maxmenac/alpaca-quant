@@ -169,6 +169,45 @@ The actual fixes (re-stamping feature timezones, backfilling `available_at` and 
 provenance, ingesting a PIT universe) belong to a future explicitly-scoped ingestion sprint, not
 4D-1. Still no alpha, signal, model training, CV, optimizer, or trading.
 
+### Phase 4F-0 — Local Synthetic Provenance Ingestion (build data, not auditor)
+
+4D-1 proved the auditor correctly *refuses* data lacking provenance; its warnings became an
+acceptance checklist. 4F-0 builds the first **local synthetic-but-realistic** data that can
+actually satisfy that checklist — and deliberately also builds data that must still fail it. It
+**modifies no auditor logic**: it only constructs fixtures and feeds them to the existing
+4C/4D/4D-1 chain (`python/alpaca_quant/research/synthetic_provenance.py`).
+
+The provenance schema built (all local, deterministic, in-memory — no committed artifacts):
+
+- **As-reported bars** (un-adjusted OHLCV) with a per-row `available_at` (`>= timestamp`) and a
+  `permanent_id`.
+- **PIT universe** with `valid_from` / `valid_to` membership, including a **delisted** symbol
+  whose `valid_to` ends mid-dataset.
+- **Date-bounded identity** mapping one `permanent_id` across a **mid-window ticker change**
+  (two ticker spans, stable identity).
+- **Corporate-action records** (an explicit split + cash dividend tied to `permanent_id` +
+  effective date) so adjustment provenance is **auditable from records**, not asserted by a flag;
+  the records also feed the existing as-of reference join via their `available_at`.
+- A **neutral pass-through feature** (`bar_volume_raw`) declared in the Feature Registry,
+  timezone-aligned to the bars.
+
+Two designed paths, both deliverables:
+
+- **Clean path → honest OK.** Strict-mode assembly yields a non-empty eligible band; the 4C
+  manifest verdict and the 4D inspection verdict are both **OK**, with all four 4D-1 warnings
+  absent. The declared `corporate_actions_status` is an honest value (`full`) consistent with the
+  supplied records.
+- **Dirty path → still refused, one named reason each.** Delisted → `not_in_universe`/ineligible
+  after `valid_to`; withheld identity → `missing_symbol_identity`; no reference/available_at →
+  `missing_available_at_semantics`; `corporate_actions_status=partial` →
+  `ambiguous_adjustment_declaration`; foreign feature timezone → `feature_timezone_mismatch`;
+  too-short window → 0-eligible / tail-null. Verdict precedence `REJECTED > SUSPECT > OK` holds.
+
+An honest OK here validates the *provenance contract path* on synthetic data; it does **not**
+validate real prices or real provenance. Real-data ingestion (network fetch, vendor corporate
+actions, real PIT universe) remains a future explicitly-scoped sprint. Still no alpha, signal,
+model training, CV, optimizer, or trading.
+
 ---
 
 ## 2. Null-Model Test Battery
