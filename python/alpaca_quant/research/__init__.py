@@ -75,6 +75,15 @@ from alpaca_quant.research.feature_registry import (
     validate_definition,
     validate_feature_set,
 )
+from alpaca_quant.research.lineage_registry import (
+    LINEAGE_RECORD_TYPE,
+    LINEAGE_REGISTRY_SCHEMA_VERSION,
+    LineageRecord,
+    LineageRegistryError,
+    build_lineage_record,
+    entry_id_from_fingerprint,
+    fingerprint_lineage_entry,
+)
 from alpaca_quant.research.ml_dataset import (
     AssembledMLDataset,
     DatasetConfig,
@@ -133,6 +142,10 @@ __all__ = [
     "FeatureRegistryError",
     "FeatureSetValidation",
     "FeatureSpec",
+    "LINEAGE_RECORD_TYPE",
+    "LINEAGE_REGISTRY_SCHEMA_VERSION",
+    "LineageRecord",
+    "LineageRegistryError",
     "MLDatasetError",
     "RegistryValidationConfig",
     "attach_feature_set_id",
@@ -154,8 +167,11 @@ __all__ = [
     "assert_features_acceptable",
     "assert_split_disjoint_and_purged",
     "build_dataset_manifest",
+    "build_lineage_record",
     "classify_feature_specs",
+    "entry_id_from_fingerprint",
     "feature_availability_summary",
+    "fingerprint_lineage_entry",
     "fingerprint_dataset",
     "make_temporal_split",
     "normalize_feature_specs",
