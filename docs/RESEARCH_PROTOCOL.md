@@ -147,6 +147,27 @@ dataset fingerprint, `feature_set_id`), coverage/safety tables, null matrix, eli
 report inspects dataset and feature metadata only. It is not an alpha, signal, strategy, model,
 trading recommendation, or execution component."* Phase 4E must be explicitly scoped.
 
+### Phase 4E — Dataset/Run Lineage Registry (descriptive provenance only)
+
+Phase 4E creates a local, deterministic lineage ledger for dataset/run provenance. It reads the
+existing 4C manifest and 4D/4D-1 inspection report outputs, then records `entry_id`,
+`record_type="lineage"`, schema version, frozen `created_at_utc`, `dataset_id`, dataset
+fingerprint, `feature_set_id`, source label fingerprint, split definitions, declared adjustment
+posture, inspection verdict, and the full inspection warning list **verbatim**. It does not
+recompute, override, or improve verdicts.
+
+This registry is not edge research. It never evaluates predictive quality and introduces no
+alpha, signal, model, training, `.fit()`, CV, optimizer, portfolio, backtest, trading, order,
+fill/imputation, global scaling, data fetch, or predictive-quality statistic. The only
+forward-compatibility measures are the `record_type` discriminator and stable
+`entry_id`/`dataset_id`/`schema_version`, so future edge-research records can reference lineage
+entries later without migration.
+
+The future edge-research registry remains documentation only and is gated on 4F-2 real
+contract-satisfying ingestion plus the locked `docs/EDGE_RESEARCH_PROTOCOL.md`. The lineage
+ledger exists so later edge research can trace exactly which dataset realization was used; it does
+not fill a future edge denominator yet.
+
 ### Phase 4D-1 — Inspection Layer Hardening (flag, never mutate)
 
 The 4E-0 real-data run surfaced three provenance conditions that the inspection layer passed over

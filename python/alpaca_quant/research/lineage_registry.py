@@ -1,8 +1,8 @@
 """Phase 4E dataset/run lineage registry: descriptive provenance only.
 
 This module records which dataset, feature set, label lineage, split definition, and inspection
-verdict produced a dataset realization. It does not evaluate predictive quality, train models,
-generate alpha/signals/weights, run backtests, place orders, read .env, or touch any network/API.
+verdict produced a dataset realization. It is a local provenance ledger, not a research engine or
+broker-execution component.
 """
 
 import hashlib
@@ -66,7 +66,8 @@ class LineageRecord(BaseModel):
 
 def _json_default(value: object) -> str:
     if hasattr(value, "isoformat"):
-        return str(value.isoformat())
+        rendered = str(value.isoformat())
+        return rendered.replace("+00:00", "Z")
     return str(value)
 
 

@@ -203,6 +203,27 @@ to the explicit local paths. No demo outputs or `data/runs` artifacts are part o
 Boundary: Phase 4B is label QA/reporting only. It is not alpha, signal, strategy, model, backtest
 expansion, optimizer, portfolio construction, trading, order logic, or execution.
 
+## Dataset/run lineage registry (Phase 4E)
+
+Phase 4E adds a local JSONL lineage ledger for dataset/run provenance only. It reads existing
+4C manifests plus 4D/4D-1 inspection reports and records what produced a dataset realization:
+`entry_id`, `record_type="lineage"`, schema version, frozen/injectable `created_at_utc`,
+`dataset_id`, dataset fingerprint, `feature_set_id`, source label fingerprint, split definitions,
+inspection verdict, the full inspection warning list copied verbatim, and declared
+corporate-action / adjustment status.
+
+The registry never evaluates predictive quality. It computes no alpha, signal, model, training,
+fit/transform, CV, optimizer, portfolio, backtest, trading, order, fill/imputation, global scaling,
+or market-data fetch. It records inspection verdicts and reasons exactly as produced; it does not
+recompute or override them. `entry_fingerprint` is canonical/sorted JSON over the recorded lineage
+fields, and `entry_id` is derived from that fingerprint for stable references.
+
+Forward compatibility is deliberately minimal: `record_type`, stable `entry_id`, stable
+`dataset_id`, and `schema_version`. A future edge-research registry is docs-only for now, gated on
+real contract-satisfying ingestion (4F-2) plus the locked
+[`EDGE_RESEARCH_PROTOCOL.md`](../../../docs/EDGE_RESEARCH_PROTOCOL.md), and will reference these
+lineage entries later. There is no future-edge schema or writer in code in Phase 4E.
+
 ## Experiment registry (Sprint 5A)
 
 An append-only JSONL registry records research experiment runs — discipline scaffolding

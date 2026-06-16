@@ -378,7 +378,15 @@ Edge Research Protocol:
 - docs/EDGE_RESEARCH_PROTOCOL.md is locked as no-code governance. It does not authorize alpha,
   signal, model training, .fit(), or trading logic.
 
+Phase 4E dataset/run lineage registry:
+- python/alpaca_quant/research/lineage_registry.py records descriptive lineage only from existing
+  4C manifests + 4D/4D-1 inspection reports. It stores stable lineage ids/fingerprints, dataset
+  fingerprint, feature_set_id, source label fingerprint, split refs, declared adjustment posture,
+  verdict, and full reason list verbatim. It does not evaluate predictive quality and introduces no
+  future-edge schema, alpha, signal, model training, .fit(), metrics, or trading logic.
+
 Next recommended sprint:
-Pause after Phase 4F-0. Do not start the Experiment Registry, Phase 4E proper, real-data fetch, or
-ML training implicitly. Any such work must be explicitly scoped. No alpha, signal, strategy, model
-training, optimizer, portfolio construction, trading, order, API, or execution begins automatically.
+Pause after Phase 4E. Do not start 4F-2 real-data ingestion, future edge-research records, ML
+training, or any predictive-quality evaluation implicitly. Any such work must be explicitly
+scoped. No alpha, signal, strategy, model training, optimizer, portfolio construction, trading,
+order, API, or execution begins automatically.

@@ -83,6 +83,13 @@ without an explicit roadmap decision.
   **OK** on a clean slice AND still refuses a dirty slice for one named reason each. Adjustment is
   auditable from records, not asserted. Still local-only: no network, alpha, signal, model, training,
   or trading. An honest OK validates the contract path only — not real prices/provenance.
+- [x] **Phase 4E dataset/run lineage registry (descriptive provenance only)** : local JSONL ledger
+  that records existing 4C manifest + 4D/4D-1 inspection outputs: dataset id/fingerprint,
+  `feature_set_id`, label fingerprint, split definitions, declared adjustment posture, inspection
+  verdict, and full reason list verbatim. It never evaluates predictive quality and adds no edge,
+  signal, model, training, `.fit()`, registry for future edge tests, data ingestion, or trading.
+  Forward compatibility is limited to `record_type="lineage"` plus stable entry/dataset/schema ids;
+  future edge-research records remain docs-only and gated on 4F-2 + `EDGE_RESEARCH_PROTOCOL.md`.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).
