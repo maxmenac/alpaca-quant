@@ -7,10 +7,12 @@ generate alpha/signals/weights, run backtests, place orders, read .env, or touch
 
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 LINEAGE_REGISTRY_SCHEMA_VERSION = 1
 LINEAGE_RECORD_TYPE = "lineage"
@@ -133,12 +135,163 @@ def build_lineage_record(
     return LineageRecord.model_validate(payload)
 
 
+def _as_mapping(value: object, *, label: str) -> dict[str, Any]:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if hasattr(value, "to_dict"):
+        data = value.to_dict()
+        if isinstance(data, Mapping):
+            return dict(data)
+    if isinstance(value, Mapping):
+        return dict(value)
+    raise LineageRegistryError(f"{label} must be a mapping or expose to_dict()")
+
+
+def _generated_at(clock: Any | None) -> datetime:
+    value = (clock or (lambda: datetime.now(UTC)))()
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise LineageRegistryError("clock must return a timezone-aware datetime")
+    return value.astimezone(UTC)
+
+
+def lineage_record_from_manifest_report(
+    *,
+    manifest: object,
+    inspection_report: Mapping[str, Any],
+    clock: Any | None = None,
+) -> LineageRecord:
+    """Create a lineage entry from existing 4C manifest and 4D inspection outputs.
+
+    The inspection verdict and warnings are copied verbatim. This function does not inspect the
+    dataset frame and does not recompute any verdict.
+    """
+    manifest_data = _as_mapping(manifest, label="manifest")
+    report_data = dict(inspection_report)
+    dataset_id = manifest_data.get("dataset_id") or report_data.get("dataset_id")
+    dataset_fingerprint = (
+        manifest_data.get("fingerprint") or report_data.get("dataset_fingerprint")
+    )
+    verdict = report_data.get("verdict")
+    if not isinstance(dataset_id, str) or not dataset_id:
+        raise LineageRegistryError("manifest/report must provide dataset_id")
+    if not isinstance(dataset_fingerprint, str) or not dataset_fingerprint:
+        raise LineageRegistryError("manifest/report must provide dataset fingerprint")
+    if verdict not in {"OK", "SUSPECT", "REJECTED"}:
+        raise LineageRegistryError("inspection_report must provide an OK/SUSPECT/REJECTED verdict")
+
+    return build_lineage_record(
+        created_at_utc=_generated_at(clock),
+        dataset_id=dataset_id,
+        dataset_fingerprint=dataset_fingerprint,
+        feature_set_id=report_data.get("feature_set_id"),
+        source_label_fingerprint=manifest_data.get("source_label_fingerprint"),
+        split_ref=list(manifest_data.get("split_definitions", [])),
+        verdict=verdict,
+        reason_list=list(report_data.get("warnings", [])),
+        declared_corporate_actions_status=manifest_data.get(
+            "declared_corporate_actions_status"
+        ),
+        declared_adjustment_status=manifest_data.get("declared_adjustment_status"),
+    )
+
+
+def append_lineage_record(registry_path: str | Path, record: LineageRecord) -> Path:
+    """Append one immutable lineage record to a local JSONL registry."""
+    path = Path(registry_path)
+    if path.is_file():
+        existing_ids = {existing.entry_id for existing in read_lineage_records(path)}
+        if record.entry_id in existing_ids:
+            raise LineageRegistryError(
+                f"entry_id already exists and is immutable: {record.entry_id}"
+            )
+    serialized = json.dumps(record.model_dump(mode="json"), allow_nan=False, sort_keys=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("a", encoding="utf-8") as registry:
+            registry.write(serialized + "\n")
+    except OSError as exc:
+        raise LineageRegistryError(f"failed to append lineage registry: {path}") from exc
+    return path
+
+
+def read_lineage_records(registry_path: str | Path) -> list[LineageRecord]:
+    """Read every validated lineage record from a local JSONL registry."""
+    path = Path(registry_path)
+    if not path.is_file():
+        raise LineageRegistryError(f"lineage registry does not exist: {path}")
+
+    records: list[LineageRecord] = []
+    seen_ids: set[str] = set()
+    try:
+        with path.open(encoding="utf-8") as registry:
+            for line_number, line in enumerate(registry, start=1):
+                if not line.strip():
+                    raise LineageRegistryError(
+                        f"invalid lineage registry entry at line {line_number}"
+                    )
+                try:
+                    payload = json.loads(line)
+                    record = LineageRecord.model_validate(payload)
+                except (json.JSONDecodeError, ValidationError) as exc:
+                    raise LineageRegistryError(
+                        f"invalid lineage registry entry at line {line_number}"
+                    ) from exc
+                if record.entry_id in seen_ids:
+                    raise LineageRegistryError(
+                        f"duplicate entry_id in registry at line {line_number}: "
+                        f"{record.entry_id}"
+                    )
+                seen_ids.add(record.entry_id)
+                records.append(record)
+    except OSError as exc:
+        raise LineageRegistryError(f"failed to read lineage registry: {path}") from exc
+    return records
+
+
+def query_lineage_records(
+    records: Sequence[LineageRecord],
+    *,
+    dataset_id: str | None = None,
+    feature_set_id: str | None = None,
+    verdict: str | None = None,
+) -> list[LineageRecord]:
+    """Return lineage records matching the provided descriptive filters."""
+    matched = list(records)
+    if dataset_id is not None:
+        matched = [record for record in matched if record.dataset_id == dataset_id]
+    if feature_set_id is not None:
+        matched = [record for record in matched if record.feature_set_id == feature_set_id]
+    if verdict is not None:
+        matched = [record for record in matched if record.verdict == verdict]
+    return matched
+
+
+def export_lineage_records(records: Sequence[LineageRecord], output_path: str | Path) -> Path:
+    """Write lineage records as canonical JSON to an explicit local path."""
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = [record.model_dump(mode="json") for record in records]
+    try:
+        path.write_text(
+            json.dumps(payload, allow_nan=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise LineageRegistryError(f"failed to export lineage registry: {path}") from exc
+    return path
+
+
 __all__ = [
     "LINEAGE_RECORD_TYPE",
     "LINEAGE_REGISTRY_SCHEMA_VERSION",
     "LineageRecord",
     "LineageRegistryError",
+    "append_lineage_record",
     "build_lineage_record",
     "entry_id_from_fingerprint",
+    "export_lineage_records",
     "fingerprint_lineage_entry",
+    "lineage_record_from_manifest_report",
+    "query_lineage_records",
+    "read_lineage_records",
 ]
