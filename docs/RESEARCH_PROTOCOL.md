@@ -90,7 +90,7 @@ Data contract (fail closed, or mark `SUSPECT` — ambiguous data is never coerce
   symbols remain until `valid_to`; not-yet-listed symbols are absent before `valid_from`. Missing
   universe marks `SUSPECT` unless `synthetic_no_universe` is explicit.
 - **As-of join doctrine.** Reference/fundamental values join on real availability time
-  (`available_at <= timestamp`, backward as-of per id). A value published late never appears
+  (`available_at >= timestamp`, backward as-of per id). A value published late never appears
   before its `available_at`; restatements preserve the value known as of `t` (not the latest
   revision). Missing `available_at` fails closed (or marks `SUSPECT` by config).
 - **Symbol identity doctrine.** `permanent_id` is preferred for lineage; tickers are mapped to a
@@ -163,7 +163,10 @@ warnings (missing provenance, not active leakage); precedence stays `REJECTED > 
   any price-level feature is present. No adjustment posture is inferred or re-derived from the bars.
 - **`feature_timezone_mismatch`.** Assembly compares the feature-source timezone against the bar
   timezone; on mismatch the features are not joined (a cross-timezone join is refused) and the
-  condition is flagged — no `tz_convert` / `tz_localize` / `replace_time_zone` is ever called.
+  condition is flagged — no `tz_convert` / `tz_localize` / `replace_time_zone` is ever called. The
+  dirty timezone-mismatch fixture may also emit collateral `feature_missing_from_dataset` because
+  the requested cross-timezone feature is absent after the refused join; that is an acceptable
+  documented consequence, not a separate fixture failure.
 
 The actual fixes (re-stamping feature timezones, backfilling `available_at` and adjustment
 provenance, ingesting a PIT universe) belong to a future explicitly-scoped ingestion sprint, not
@@ -200,8 +203,10 @@ Two designed paths, both deliverables:
 - **Dirty path → still refused, one named reason each.** Delisted → `not_in_universe`/ineligible
   after `valid_to`; withheld identity → `missing_symbol_identity`; no reference/available_at →
   `missing_available_at_semantics`; `corporate_actions_status=partial` →
-  `ambiguous_adjustment_declaration`; foreign feature timezone → `feature_timezone_mismatch`;
-  too-short window → 0-eligible / tail-null. Verdict precedence `REJECTED > SUSPECT > OK` holds.
+  `ambiguous_adjustment_declaration`; foreign feature timezone → `feature_timezone_mismatch`
+  (with possible collateral `feature_missing_from_dataset` because the cross-timezone feature join
+  is refused); too-short window → 0-eligible / tail-null. Verdict precedence
+  `REJECTED > SUSPECT > OK` holds.
 
 An honest OK here validates the *provenance contract path* on synthetic data; it does **not**
 validate real prices or real provenance. Real-data ingestion (network fetch, vendor corporate

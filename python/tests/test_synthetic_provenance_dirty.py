@@ -91,6 +91,8 @@ def test_timezone_mismatch_flagged_and_no_conversion() -> None:
     assembled, report = _inspect(sp.timezone_mismatch_fixture())
     assert report["verdict"] == "SUSPECT"
     assert "feature_timezone_mismatch" in _codes(report)
+    # The refused cross-timezone join can also surface the requested feature as missing.
+    assert "feature_missing_from_dataset" in _codes(report)
     # The auditor refused the join and converted nothing: the feature is absent, not mutated.
     assert sp.NEUTRAL_FEATURE not in assembled.frame.columns
     assert assembled.manifest.timezone_alignment["mismatch"] is True

@@ -298,7 +298,7 @@ ML dataset assembly + data contract (Phase 4C):
 - Data contract enforced: adjusted-close safety (back-adjusted price-level features rejected,
   unknown adjustment -> SUSPECT, only pit_safe passes); PIT universe / anti-survivorship
   (valid_from <= t <= valid_to, open-ended allowed; missing universe -> SUSPECT unless
-  synthetic_no_universe); as-of joins (available_at <= timestamp, backward per id,
+  synthetic_no_universe); as-of joins (available_at >= timestamp, backward per id,
   restatement-preserving, missing available_at fails closed); symbol identity (date-bounded
   ticker -> permanent_id, never blind-merged; missing identity -> SUSPECT); feature cutoff is
   the prior bar, strictly before the row timestamp = label entry.
@@ -345,7 +345,9 @@ Inspection hardening (Phase 4D-1) — closes 3 audit blind spots found by 4E-0; 
   best_effort) is flagged in manifest + report regardless of any price-level feature. Nothing inferred.
 - `feature_timezone_mismatch` (SUSPECT): assembly compares feature-source tz vs bar tz; on mismatch
   the features are NOT joined and the condition is flagged (timezone_alignment) — NO tz_convert/
-  tz_localize/replace_time_zone is ever called. Coverage shortfall stays surfaced by the null gate.
+  tz_localize/replace_time_zone is ever called. Because the cross-timezone feature join is refused,
+  the dirty fixture may also emit collateral `feature_missing_from_dataset`; this is acceptable as
+  a documented consequence. Coverage shortfall stays surfaced by the null gate.
 - All three are SUSPECT-class (missing provenance, not leakage); precedence REJECTED > SUSPECT > OK
   preserved; warnings emitted in stable sorted order. The real fixes (re-stamp tz, backfill
   available_at/adjustment provenance) belong to a future ingestion sprint, not 4D-1.
@@ -364,7 +366,9 @@ Local synthetic provenance ingestion (Phase 4F-0) — build data, not auditor:
 - Dirty path (one named reason each): delisted → not_in_universe/ineligible after valid_to;
   no identity → missing_symbol_identity; no reference/available_at → missing_available_at_semantics;
   corporate_actions_status='partial' → ambiguous_adjustment_declaration; foreign feature tz →
-  feature_timezone_mismatch; too-short window → 0-eligible/tail-null. REJECTED > SUSPECT > OK held.
+  feature_timezone_mismatch (with possible collateral `feature_missing_from_dataset` because the
+  cross-timezone feature join is refused); too-short window → 0-eligible/tail-null.
+  REJECTED > SUSPECT > OK held.
 - determinism: frozen clock in tests, stable sorted warning set, reproducible fingerprints.
 - Limitation: an honest OK on synthetic data validates the CONTRACT PATH only; it does NOT validate
   real prices or real provenance. Real-data ingestion (network fetch, vendor corporate actions,

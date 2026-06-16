@@ -325,7 +325,7 @@ Contract enforced (fail closed / mark `SUSPECT`, never silently coerce):
   at that timestamp (`valid_from <= t <= valid_to`, open-ended `valid_to` allowed). Missing
   universe marks `SUSPECT` unless `synthetic_no_universe` is explicit.
 - **As-of joins.** Reference/fundamental values join on real availability time
-  (`available_at <= timestamp`, backward per id). Late-published values never appear early;
+  (`available_at >= timestamp`, backward per id). Late-published values never appear early;
   restatements preserve the value known as of `t`. Missing `available_at` fails closed.
 - **Symbol identity.** `permanent_id` is preferred for lineage; tickers are mapped only within
   date bounds (never merged blindly). No identity table → fall back to ticker + `SUSPECT`.
@@ -425,7 +425,9 @@ is **detection/classification only** — no value is synthesized, inferred, norm
   `tz_convert` / `tz_localize` / `replace_time_zone` is ever called.** Re-stamping feature
   timezones belongs to a future ingestion/feature sprint. A feature whose non-null coverage falls
   below the null-ratio threshold is surfaced by the existing coverage/null reporting (never
-  dropped or filled).
+  dropped or filled). The dirty timezone-mismatch fixture may also emit collateral
+  `feature_missing_from_dataset` because the requested cross-timezone feature is absent after the
+  refused join; that is an acceptable documented consequence, not a separate fixture failure.
 
 These three additions are **SUSPECT-class** (missing provenance, not active leakage); precedence
 stays `REJECTED > SUSPECT > OK`, and the warning set is emitted in a stable, sorted order so the
@@ -448,8 +450,9 @@ auditor). It proves both halves of the contract:
 - **Dirty path → still refused for one named reason each.** delisted → `not_in_universe` after
   `valid_to`; withheld identity → `missing_symbol_identity`; no reference/available_at →
   `missing_available_at_semantics`; `corporate_actions_status=partial` →
-  `ambiguous_adjustment_declaration`; foreign feature timezone → `feature_timezone_mismatch`;
-  too-short window → 0-eligible / tail-null.
+  `ambiguous_adjustment_declaration`; foreign feature timezone → `feature_timezone_mismatch` (with
+  possible collateral `feature_missing_from_dataset` because the cross-timezone feature join is
+  refused); too-short window → 0-eligible / tail-null.
 
 Adjustment safety is **auditable from records** (split/dividend rows with effective dates), never
 asserted by a bare flag. An honest OK on synthetic data validates the *contract path* only — it
