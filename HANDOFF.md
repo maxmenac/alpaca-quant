@@ -374,6 +374,10 @@ Local synthetic provenance ingestion (Phase 4F-0) — build data, not auditor:
   real prices or real provenance. Real-data ingestion (network fetch, vendor corporate actions,
   real PIT universe, tz re-stamping) still owes that and remains a future explicitly-scoped sprint.
 
+Edge Research Protocol:
+- docs/EDGE_RESEARCH_PROTOCOL.md is locked as no-code governance. It does not authorize alpha,
+  signal, model training, .fit(), or trading logic.
+
 Next recommended sprint:
 Pause after Phase 4F-0. Do not start the Experiment Registry, Phase 4E proper, real-data fetch, or
 ML training implicitly. Any such work must be explicitly scoped. No alpha, signal, strategy, model
