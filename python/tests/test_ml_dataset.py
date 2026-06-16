@@ -342,6 +342,39 @@ def test_missing_required_feature_rejected() -> None:
         )
 
 
+# --- Change 3: feature/bar timezone mismatch detected at assembly ----------
+
+
+def test_feature_timezone_mismatch_flagged_and_not_mutated() -> None:
+    bars = _bars("AAPL", [100.0, 110.0, 121.0, 130.0])
+    labels = _labels(bars)
+    features = _features(bars)
+    # feature timestamps in a DIFFERENT timezone than the UTC bars (test fixture setup only)
+    foreign = features.with_columns(
+        pl.col("timestamp").dt.convert_time_zone("Europe/Copenhagen")
+    )
+    before_ts = foreign["timestamp"].to_list()
+
+    res = _assemble(labels, foreign)
+    assert res.manifest.timezone_alignment["mismatch"] is True
+    codes = {w["code"] for w in res.manifest.warnings}
+    assert "feature_timezone_mismatch" in codes
+    assert res.verdict == "SUSPECT"
+    # the feature was NOT joined (refused) and the source timestamps were NOT altered
+    assert "dollar_volume" not in res.frame.columns
+    assert foreign["timestamp"].to_list() == before_ts
+    assert foreign.schema["timestamp"].time_zone == "Europe/Copenhagen"
+
+
+def test_matching_timezone_has_no_mismatch_warning() -> None:
+    bars = _bars("AAPL", [100.0, 110.0, 121.0, 130.0])
+    res = _assemble(_labels(bars), _features(bars))
+    assert res.manifest.timezone_alignment["mismatch"] is False
+    codes = {w["code"] for w in res.manifest.warnings}
+    assert "feature_timezone_mismatch" not in codes
+    assert "dollar_volume" in res.frame.columns
+
+
 # --- reproducibility & lineage ---------------------------------------------
 
 

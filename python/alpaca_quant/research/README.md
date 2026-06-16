@@ -419,6 +419,19 @@ is **detection/classification only** — no value is synthesized, inferred, norm
   status is absent or not unambiguously clean (e.g. `partial` / `best_effort`), both manifest and
   report flag it — **independent of whether any price-level feature is present**. No adjustment
   posture is inferred, computed, or re-derived from the bars.
+- **`feature_timezone_mismatch` (SUSPECT).** Assembly compares the feature-source timezone against
+  the bar timestamp timezone. When they differ, the features are **not** joined (a cross-timezone
+  join is refused) and the condition is flagged in `timezone_alignment` + warnings — **no
+  `tz_convert` / `tz_localize` / `replace_time_zone` is ever called.** Re-stamping feature
+  timezones belongs to a future ingestion/feature sprint. A feature whose non-null coverage falls
+  below the null-ratio threshold is surfaced by the existing coverage/null reporting (never
+  dropped or filled).
+
+These three additions are **SUSPECT-class** (missing provenance, not active leakage); precedence
+stays `REJECTED > SUSPECT > OK`, and the warning set is emitted in a stable, sorted order so the
+report is reproducible across row/column orderings. They **flag, never mutate**: no `available_at`,
+adjustment posture, or timezone is synthesized, inferred, or converted — those fixes live in a
+future scoped ingestion sprint.
 
 ## What this layer does NOT do
 

@@ -69,6 +69,12 @@ without an explicit roadmap decision.
   **No model training, no CV, no alpha/signal/strategy/optimizer/weight/portfolio/backtest/trading.**
   The registry prevents unsafe features from silently entering datasets; inspection audits 4C
   quality before any future ML. Phase 4E must be explicitly scoped.
+- [x] **Phase 4D-1 inspection hardening (flag, never mutate)** : closes the three audit blind spots
+  found by the 4E-0 real-data run — `missing_available_at_semantics` (no availability column),
+  `ambiguous_adjustment_declaration` (declared corporate-action/adjustment status carried verbatim,
+  flagged when absent/partial), `feature_timezone_mismatch` (feature tz ≠ bar tz → join refused, no
+  conversion). All SUSPECT-class; detection/classification only — nothing synthesized, inferred, or
+  converted. The actual fixes belong to a future ingestion sprint.
 - [ ] momentum cross-sectional, mean-reversion court terme, un facteur AQR (value/low-vol).
 - [ ] Bonus : une famille de patterns Bulkowski **mesurée** (edge à prouver).
 - [ ] Chaque alpha suit le Promotion Gate ; matrice de corrélation (on veut la décorrélation).

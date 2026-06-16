@@ -147,6 +147,28 @@ dataset fingerprint, `feature_set_id`), coverage/safety tables, null matrix, eli
 report inspects dataset and feature metadata only. It is not an alpha, signal, strategy, model,
 trading recommendation, or execution component."* Phase 4E must be explicitly scoped.
 
+### Phase 4D-1 — Inspection Layer Hardening (flag, never mutate)
+
+The 4E-0 real-data run surfaced three provenance conditions that the inspection layer passed over
+silently. 4D-1 closes exactly those three by adding **detection/classification only** — no value
+is synthesized, inferred, normalized, corrected, or filled. All three raise **SUSPECT-class**
+warnings (missing provenance, not active leakage); precedence stays `REJECTED > SUSPECT > OK`.
+
+- **`missing_available_at_semantics` (standalone).** A source carrying no `available_at` column and
+  no reference availability semantics is flagged: as-of provenance cannot be proven. The absent
+  `available_at` is never created or inferred.
+- **`ambiguous_adjustment_declaration`.** The **declared** `corporate_actions_status` /
+  `adjustment_status` is carried into the manifest verbatim; when absent or not unambiguously clean
+  (e.g. `partial`, `best_effort`) it is flagged in both manifest and report, independent of whether
+  any price-level feature is present. No adjustment posture is inferred or re-derived from the bars.
+- **`feature_timezone_mismatch`.** Assembly compares the feature-source timezone against the bar
+  timezone; on mismatch the features are not joined (a cross-timezone join is refused) and the
+  condition is flagged — no `tz_convert` / `tz_localize` / `replace_time_zone` is ever called.
+
+The actual fixes (re-stamping feature timezones, backfilling `available_at` and adjustment
+provenance, ingesting a PIT universe) belong to a future explicitly-scoped ingestion sprint, not
+4D-1. Still no alpha, signal, model training, CV, optimizer, or trading.
+
 ---
 
 ## 2. Null-Model Test Battery

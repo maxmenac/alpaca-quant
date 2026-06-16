@@ -283,6 +283,18 @@ def build_dataset_inspection_report(
             )
         )
 
+    # Feature/bar timezone mismatch (detected at assembly; carried verbatim, never converted).
+    tz_alignment = dict(manifest_data.get("timezone_alignment", {}))
+    if tz_alignment.get("mismatch"):
+        reasons.append(
+            _reason(
+                "feature_timezone_mismatch",
+                VERDICT_SUSPECT,
+                f"feature timezone {tz_alignment.get('feature_timezone')!r} differs from bar "
+                f"timezone {tz_alignment.get('bar_timezone')!r}; join refused, no conversion done.",
+            )
+        )
+
     # Surface ambiguous-adjustment suspects already recorded by the 4C manifest.
     for name in manifest_data.get("suspect_features", []):
         reasons.append(
@@ -292,6 +304,9 @@ def build_dataset_inspection_report(
                 f"manifest flagged feature {name!r} as ambiguously adjusted.",
             )
         )
+
+    # Deterministic, stable warning order so the report is reproducible across row/column orders.
+    reasons.sort(key=lambda item: (item["code"], item["message"]))
 
     verdict = VERDICT_OK
     for item in reasons:

@@ -319,3 +319,91 @@ def test_report_flags_absent_adjustment_declaration_without_price_feature() -> N
     codes = {w["code"] for w in report["warnings"]}
     assert "ambiguous_adjustment_declaration" in codes
     assert report["verdict"] in {VERDICT_SUSPECT, VERDICT_REJECTED}
+
+
+# --- Change 3: report surfaces feature/bar timezone mismatch ----------------
+
+
+def test_report_surfaces_timezone_mismatch() -> None:
+    closes = [100.0, 110.0, 121.0, 130.0]
+    bars = pl.DataFrame(
+        {
+            "symbol": ["AAPL"] * len(closes),
+            "timestamp": [_day(2 + i) for i in range(len(closes))],
+            "close": closes,
+        }
+    )
+    labels = build_forward_return_labels(bars)
+    features = bars.select(["symbol", "timestamp"]).with_columns(
+        pl.Series(FEATURE, [float(i + 1) * 1000.0 for i in range(len(closes))])
+    ).with_columns(pl.col("timestamp").dt.convert_time_zone("Europe/Copenhagen"))
+    res = assemble_ml_dataset(
+        labels=labels, features=features, feature_specs=[FeatureSpec(FEATURE)],
+        label_columns=[LABEL], config=DatasetConfig(synthetic_no_universe=True),
+        clock=_frozen_clock,
+    )
+    report = _report(res, build_registry([_neutral()]))
+    codes = {w["code"] for w in report["warnings"]}
+    assert "feature_timezone_mismatch" in codes
+    assert report["verdict"] == VERDICT_SUSPECT
+
+
+# --- Cross-cutting: precedence, determinism, regression fixture -------------
+
+
+def test_verdict_precedence_rejected_dominates_suspect() -> None:
+    # A SUSPECT timezone/availability dataset PLUS a REJECTED (future-looking) feature -> REJECTED.
+    res = _dataset()
+    registry = build_registry([_neutral(uses_future_data=True)])
+    report = _report(res, registry)
+    assert report["verdict"] == VERDICT_REJECTED
+    # the SUSPECT-class reasons are still present in the (richer) reason list
+    codes = {w["code"] for w in report["warnings"]}
+    assert "missing_available_at_semantics" in codes
+
+
+def test_warning_set_deterministic_under_column_and_row_reordering() -> None:
+    res = _dataset()
+    registry = build_registry([_neutral()])
+    base = _report(res, registry)
+    shuffled = res.frame.select(list(reversed(res.frame.columns)))[::-1]
+    other = build_dataset_inspection_report(
+        shuffled, manifest=res.manifest, registry=registry,
+        requested_features=[FEATURE], clock=_frozen_clock,
+    )
+    assert [w["code"] for w in base["warnings"]] == [w["code"] for w in other["warnings"]]
+    assert base["verdict"] == other["verdict"]
+
+
+def test_4e0_regression_fixture_now_richer_still_suspect_zero_eligible() -> None:
+    # Synthetic stand-in for the 4E-0 real slice: no universe, no available_at,
+    # corporate_actions_status: partial, short window. Strict mode -> 0 eligible.
+    closes = [185.55, 184.24, 182.0, 181.09, 185.535]
+    bars = pl.DataFrame(
+        {
+            "symbol": ["AAPL"] * len(closes),
+            "timestamp": [_day(2 + i) for i in range(len(closes))],
+            "close": closes,
+        }
+    )
+    labels = build_forward_return_labels(bars)
+    features = bars.select(["symbol", "timestamp"]).with_columns(
+        pl.Series(FEATURE, [float(v) for v in [1e6, 2e6, 3e6, 4e6, 5e6]])
+    )
+    res = assemble_ml_dataset(
+        labels=labels, features=features, feature_specs=[FeatureSpec(FEATURE)],
+        label_columns=[LABEL], config=DatasetConfig(),  # strict: no universe -> 0 eligible
+        data_declaration={"corporate_actions_status": "partial"},
+        clock=_frozen_clock,
+    )
+    assert res.manifest.eligible_row_count == 0
+    report = _report(res, build_registry([_neutral()]))
+    codes = {w["code"] for w in report["warnings"]}
+    # original 4E-0 reasons still present...
+    assert "missing_pit_universe" in codes
+    assert "missing_symbol_identity" in codes
+    # ...now additionally surfaced by 4D-1 (Changes 1 and 2)
+    assert "missing_available_at_semantics" in codes
+    assert "ambiguous_adjustment_declaration" in codes
+    # verdict class unchanged: still SUSPECT
+    assert report["verdict"] == VERDICT_SUSPECT

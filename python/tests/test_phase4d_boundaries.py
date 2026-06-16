@@ -9,6 +9,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PHASE_4D_SOURCES = [
     REPO_ROOT / "python" / "alpaca_quant" / "research" / "feature_registry.py",
     REPO_ROOT / "python" / "alpaca_quant" / "research" / "dataset_report.py",
+    REPO_ROOT / "python" / "alpaca_quant" / "research" / "dataset_manifest.py",
+    REPO_ROOT / "python" / "alpaca_quant" / "research" / "ml_dataset.py",
     REPO_ROOT / "scripts" / "inspect_dataset.py",
 ]
 
@@ -29,6 +31,11 @@ FORBIDDEN_PATTERNS = [
     r"submit_order",
     r"place_order",
     r"alpaca_trade_api",
+    # 4D-1 doctrine: detect timezones, never convert/normalize them.
+    r"convert_time_zone",
+    r"replace_time_zone",
+    r"tz_convert",
+    r"tz_localize",
 ]
 
 

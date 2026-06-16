@@ -335,7 +335,22 @@ Feature registry + dataset inspection (Phase 4D):
 - CLI: python scripts/inspect_dataset.py --dataset ... --manifest ... [--feature-registry ...]
   --output-json ... --output-md ...; writes the report only, never into data/runs/.
 
+Inspection hardening (Phase 4D-1) — closes 3 audit blind spots found by 4E-0; detect, never mutate:
+- modules touched: research/dataset_report.py, research/dataset_manifest.py, research/ml_dataset.py
+- `missing_available_at_semantics` (standalone, SUSPECT): a source with no available_at column and
+  no reference availability is flagged; the absent available_at is never synthesized.
+- `ambiguous_adjustment_declaration` (SUSPECT): assemble_ml_dataset(data_declaration=...) carries the
+  DECLARED corporate_actions_status/adjustment_status into the manifest verbatim
+  (declared_corporate_actions_status/declared_adjustment_status); absent or non-clean (partial/
+  best_effort) is flagged in manifest + report regardless of any price-level feature. Nothing inferred.
+- `feature_timezone_mismatch` (SUSPECT): assembly compares feature-source tz vs bar tz; on mismatch
+  the features are NOT joined and the condition is flagged (timezone_alignment) — NO tz_convert/
+  tz_localize/replace_time_zone is ever called. Coverage shortfall stays surfaced by the null gate.
+- All three are SUSPECT-class (missing provenance, not leakage); precedence REJECTED > SUSPECT > OK
+  preserved; warnings emitted in stable sorted order. The real fixes (re-stamp tz, backfill
+  available_at/adjustment provenance) belong to a future ingestion sprint, not 4D-1.
+
 Next recommended sprint:
-Pause after Phase 4D Feature Registry + Dataset Inspection. Do not start Phase 4E implicitly.
+Pause after Phase 4D-1 inspection hardening. Do not start Phase 4E / ingestion implicitly.
 Any Phase 4E work must be explicitly scoped. No alpha, signal, strategy, model training,
 optimizer, portfolio construction, trading, order, API, or execution work begins automatically.

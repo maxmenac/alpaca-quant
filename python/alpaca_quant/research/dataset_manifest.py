@@ -8,7 +8,7 @@ contract is only partially provable; ambiguous data is never silently coerced in
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -110,6 +110,7 @@ class DatasetManifest:
     warnings: list[dict[str, Any]]
     declared_corporate_actions_status: str | None = None
     declared_adjustment_status: str | None = None
+    timezone_alignment: dict[str, Any] = field(default_factory=dict)
     boundary_statement: str = BOUNDARY_STATEMENT
     adjusted_close_caveat: str = ADJUSTED_CLOSE_CAVEAT
     no_model_training: bool = True
@@ -231,6 +232,7 @@ def build_dataset_manifest(
     split_definitions: Sequence[Mapping[str, Any]] | None = None,
     config_payload: Mapping[str, Any] | None = None,
     data_declaration: Mapping[str, Any] | None = None,
+    timezone_alignment: Mapping[str, Any] | None = None,
     clock: Any | None = None,
 ) -> DatasetManifest:
     """Build a non-secret dataset manifest with null accounting, lineage, and a SUSPECT verdict."""
@@ -294,6 +296,19 @@ def build_dataset_manifest(
                 "assumed. Declared value carried through verbatim; nothing inferred.",
             )
         )
+
+    tz_alignment = dict(timezone_alignment or {})
+    if tz_alignment.get("mismatch"):
+        warnings.append(
+            _warning(
+                "feature_timezone_mismatch",
+                "Feature source timezone "
+                f"{tz_alignment.get('feature_timezone')!r} differs from bar timezone "
+                f"{tz_alignment.get('bar_timezone')!r}; features were NOT joined and NO timezone "
+                "conversion was performed. Re-stamping belongs to a future ingestion sprint.",
+            )
+        )
+
     if not universe_provided:
         if synthetic_no_universe:
             warnings.append(
@@ -400,6 +415,7 @@ def build_dataset_manifest(
         warnings=warnings,
         declared_corporate_actions_status=declared_corporate_status,
         declared_adjustment_status=declared_adjustment_status,
+        timezone_alignment=tz_alignment,
     )
 
 

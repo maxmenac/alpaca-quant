@@ -102,6 +102,12 @@ def _validate_panel(df: pl.DataFrame, *, id_column: str, label: str) -> None:
         raise MLDatasetError(f"{label} contains duplicate {id_column}/timestamp rows")
 
 
+def _time_zone(df: pl.DataFrame) -> str | None:
+    """Return the declared timezone of the timestamp column (None if tz-naive). Read-only."""
+    dtype = df.schema[TIMESTAMP_COL]
+    return getattr(dtype, "time_zone", None)
+
+
 def _resolve_horizon(column: str, label_horizons: Mapping[str, int] | None) -> int:
     if label_horizons is not None and column in label_horizons:
         horizon = label_horizons[column]
@@ -158,11 +164,26 @@ def assemble_ml_dataset(
         raise MLDatasetError(f"features panel is missing required columns: {missing_features}")
     feature_columns = [spec.name for spec in specs if spec.name in features.columns]
 
+    # Detect (never fix) a feature/bar timezone mismatch. We do NOT convert, localize, or
+    # normalize timezones; we refuse to silently bless a cross-timezone join. When the timezones
+    # differ the features are left unjoined (absent, not mutated) and the condition is flagged
+    # SUSPECT downstream. A matched timezone joins normally.
+    bar_timezone = _time_zone(labels)
+    feature_timezone = _time_zone(features)
+    timezone_mismatch = bar_timezone != feature_timezone
+    timezone_alignment = {
+        "bar_timezone": bar_timezone,
+        "feature_timezone": feature_timezone,
+        "mismatch": timezone_mismatch,
+    }
+
     # 1. Spine = labels panel; carry features through unchanged via an inner-by-key left join.
-    feature_view = features.select([id_column, TIMESTAMP_COL, *feature_columns])
-    spine = labels.select(
-        [id_column, TIMESTAMP_COL, *label_columns]
-    ).join(feature_view, on=[id_column, TIMESTAMP_COL], how="left")
+    label_spine = labels.select([id_column, TIMESTAMP_COL, *label_columns])
+    if timezone_mismatch:
+        spine = label_spine
+    else:
+        feature_view = features.select([id_column, TIMESTAMP_COL, *feature_columns])
+        spine = label_spine.join(feature_view, on=[id_column, TIMESTAMP_COL], how="left")
 
     # 2. Symbol identity -> permanent_id lineage (date-bounded; no blind ticker merge).
     spine = resolve_permanent_ids(spine, identity, id_column=id_column)
@@ -253,6 +274,7 @@ def assemble_ml_dataset(
         asof_summary=asof_join_summary(frame, asof_columns),
         config_payload=config_payload,
         data_declaration=data_declaration,
+        timezone_alignment=timezone_alignment,
         clock=clock,
     )
     return AssembledMLDataset(
